@@ -273,6 +273,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     applyShape()
     updateTitle()
     buttons.update(screenOn: isPhoneScreenOn)
+    buttons.update(computer: on)
     retries = 0
     startSession()
   }
@@ -659,6 +660,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   }
 
   var isPhoneScreenOn: Bool { !phoneScreenOff }
+
+  func toggleComputer() { MirrorManager.shared.toggleComputer(phone) }
 }
 
 // MARK: - Title bar buttons
@@ -669,6 +672,7 @@ private final class PhoneButtons: NSTitlebarAccessoryViewController {
   private weak var controller: MirrorWindowController?
   private let screen = TitlebarButton()
   private let stop = TitlebarButton()
+  private let mode = TitlebarButton()
   private var width: NSLayoutConstraint?
   private var baseWidth: CGFloat = 118
 
@@ -697,13 +701,15 @@ private final class PhoneButtons: NSTitlebarAccessoryViewController {
     stop.toolTip = String(localized: "Stop Recording")
     stop.action = #selector(stopAction)
     stop.isHidden = true
-    let stack = NSStackView(views: isApp ? [stop, back] : [stop, back, home, recents, screen])
+    mode.action = #selector(modeAction)
+    let stack = NSStackView(
+      views: isApp ? [stop, back] : [stop, mode, back, home, recents, screen])
     stack.spacing = 3
     stack.distribution = .fillEqually
     stack.translatesAutoresizingMaskIntoConstraints = false
     for button in stack.arrangedSubviews { (button as? NSButton)?.target = self }
-    // The same metrics as the buttons this replaces: 118 × 24, 6 pt from the edge.
-    baseWidth = isApp ? 32 : 118
+    // The same metrics as the buttons this replaces: 118 × 24 for four, 6 pt from the edge.
+    baseWidth = isApp ? 32 : 147
     let container = NSView(frame: NSRect(x: 0, y: 0, width: baseWidth, height: 24))
     container.addSubview(stack)
     NSLayoutConstraint.activate([
@@ -718,6 +724,14 @@ private final class PhoneButtons: NSTitlebarAccessoryViewController {
     self.width = width
     view = container
     update(screenOn: controller?.isPhoneScreenOn ?? false)
+    update(computer: controller?.computer ?? false)
+  }
+
+  /// Shows the other mode: a computer on the phone's screen, a phone on the desktop.
+  func update(computer: Bool) {
+    mode.image = TitlebarButton.symbol(
+      computer ? "iphone" : "laptopcomputer", size: computer ? 13 : 14, weight: .regular)
+    mode.toolTip = computer ? String(localized: "Phone Mode") : String(localized: "Computer Mode")
   }
 
   /// A filled orange sun while the phone's screen is lit, a quiet outline while it is dark.
@@ -745,6 +759,7 @@ private final class PhoneButtons: NSTitlebarAccessoryViewController {
   @objc private func homeAction() { controller?.home() }
   @objc private func recentsAction() { controller?.recents() }
   @objc private func screenAction() { controller?.togglePhoneScreen() }
+  @objc private func modeAction() { controller?.toggleComputer() }
 }
 
 private final class TitlebarButton: NSButton {
