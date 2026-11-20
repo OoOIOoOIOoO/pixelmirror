@@ -235,6 +235,9 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   private var checkingLock = false
   /// Touch ID asks once each time the phone locks, not again after it is cancelled.
   private var touchIDAsked = false
+  /// The app opens the PIN screen by itself once each time the phone locks.
+  private var pinScreenOpened = false
+  private var openingPINScreen = false
   private let mirrorView = MirrorView()
   private let overlay = NSHostingView(rootView: MirrorOverlay(text: "", busy: true))
   private let notice = NSHostingView(rootView: InputBlockedNotice(maker: "", close: {}))
@@ -451,7 +454,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   }
 
   private func checkLock() {
-    guard !ownsDisplay, session != nil, !unlockModel.working, !checkingLock else {
+    guard !ownsDisplay, session != nil, !unlockModel.working, !checkingLock, !openingPINScreen
+    else {
       if ownsDisplay {
         phoneLocked = false
         showUnlockCard(false)
@@ -465,7 +469,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       DispatchQueue.main.async {
         guard let self else { return }
         self.checkingLock = false
-        guard !self.ownsDisplay, !self.unlockModel.working else { return }
+        guard !self.ownsDisplay, !self.unlockModel.working, !self.openingPINScreen else { return }
         self.lockChanged(locked: state.locked, pinScreen: state.pinScreen)
       }
     }
@@ -475,6 +479,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     phoneLocked = locked
     guard locked else {
       touchIDAsked = false
+      pinScreenOpened = false
       showUnlockCard(false)
       if unlocking {
         stopWaitingForUnlock()
@@ -482,14 +487,33 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       }
       return
     }
+    guard window?.isKeyWindow == true else { return }
     if pinScreen {
+      // The PIN screen is up: the box, and Touch ID with it, go over it.
       showUnlockCard(true)
+      if !touchIDAsked, PhonePIN.isSaved(phone.id) {
+        touchIDAsked = true
+        unlockWithTouchID()
+      }
+    } else if !pinScreenOpened {
+      pinScreenOpened = true
+      openPINScreen()
     } else if unlockModel.pin.isEmpty, unlockModel.problem == nil {
-      showUnlockCard(false)  // the PIN screen went away untouched
+      showUnlockCard(false)  // the PIN screen timed out or was closed
     }
-    if !touchIDAsked, window?.isKeyWindow == true, PhonePIN.isSaved(phone.id) {
-      touchIDAsked = true
-      unlockWithTouchID()
+  }
+
+  /// Takes the lock screen to its PIN screen, the way a key on a keyboard does.
+  private func openPINScreen() {
+    openingPINScreen = true
+    let transport = phone.transport
+    DispatchQueue.global().async { [weak self] in
+      let ready = PhoneUnlock.openPINScreen(transport)
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.openingPINScreen = false
+        if ready, !self.ownsDisplay { self.lockChanged(locked: true, pinScreen: true) }
+      }
     }
   }
 

@@ -20,21 +20,21 @@ enum PhoneUnlock {
   }
 
   /// Wakes the phone and opens its PIN screen, unless it is open already.
-  /// A fingerprint prompt sometimes takes the first swipe, so it tries again,
-  /// after giving a slow PIN screen time to open.
+  /// A key opens it straight from the lock screen; a tap near the top first
+  /// leaves the dimmed fingerprint prompt, which ignores keys.
   static func openPINScreen(_ transport: String) -> Bool {
     let script = """
       black() { \(black); }
       black && { echo ready; exit; }
-      input keyevent KEYCODE_WAKEUP; sleep 0.4
+      input keyevent KEYCODE_WAKEUP
       set -- $(wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' ')
-      for try in 1 2 3; do
+      for try in 1 2; do
+        input keyevent KEYCODE_SPACE
+        for wait in 1 2 3 4 5; do sleep 0.3; black && { echo ready; exit; }; done
         input tap $(($1/2)) $(($2/6)); sleep 0.5
-        input touchscreen swipe $(($1/2)) $(($2*9/10)) $(($1/2)) $(($2*3/10)) 400
-        for wait in 1 2 3 4; do sleep 0.4; black && { echo ready; exit; }; done
       done
       """
-    return ADB.shell(transport, script, timeout: 20).hasSuffix("ready")
+    return ADB.shell(transport, script, timeout: 12).hasSuffix("ready")
   }
 }
 
