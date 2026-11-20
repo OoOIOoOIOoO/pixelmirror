@@ -132,6 +132,13 @@ final class ControlChannel: @unchecked Sendable {
     send(m)
   }
 
+  /// Asks the phone's media scanner to add a file, so the gallery shows it.
+  func scanFile(_ path: String) {
+    var m = Message(22)
+    m.string(path)
+    send(m)
+  }
+
   /// Resizes an app's own display to follow its window, in pixels.
   func resizeDisplay(_ size: CGSize) {
     var m = Message(21)

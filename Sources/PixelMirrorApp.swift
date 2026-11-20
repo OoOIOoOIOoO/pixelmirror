@@ -69,6 +69,13 @@ struct PhoneCommands: Commands {
       }
       .keyboardShortcut("o")
       .disabled(hub.phones.isEmpty)
+      Button("Recent Photos") {
+        if let phone = MirrorManager.shared.currentPhone {
+          RecentPhotosPanel.shared.show(for: phone)
+        }
+      }
+      .keyboardShortcut("p", modifiers: [.command, .shift])
+      .disabled(hub.phones.isEmpty)
       Divider()
       Button("Back") { MirrorManager.shared.keyController?.back() }
         .keyboardShortcut("[")

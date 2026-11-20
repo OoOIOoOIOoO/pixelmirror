@@ -86,6 +86,9 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   private let overlay = NSHostingView(rootView: MirrorOverlay(text: "", busy: true))
   private let notice = NSHostingView(rootView: InputBlockedNotice(maker: "", close: {}))
   private var session: MirrorSession?
+  private let files = FileSender()
+  private lazy var transferHUD = NSHostingView(
+    rootView: TransferHUD(sender: files, dropping: false))
   private var videoSize = CGSize.zero
   private var retries = 0
   private var phonePresent = true
@@ -121,7 +124,11 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     notice.translatesAutoresizingMaskIntoConstraints = false
     notice.isHidden = true
     container.addSubview(notice)
+    transferHUD.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(transferHUD)
     NSLayoutConstraint.activate([
+      transferHUD.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+      transferHUD.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -24),
       mirrorView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
       mirrorView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
       mirrorView.topAnchor.constraint(equalTo: container.topAnchor),
@@ -134,6 +141,11 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     ])
     window.contentView = container
     window.addTitlebarAccessoryViewController(buttons)
+    mirrorView.onDragging = { [weak self] dropping in
+      guard let self else { return }
+      self.transferHUD.rootView = TransferHUD(sender: self.files, dropping: dropping)
+    }
+    mirrorView.onDropFiles = { [weak self] urls in self?.send(urls) }
     updateTitle()
     if !window.setFrameUsingName(frameName) { window.center() }
     if app != nil { window.contentMinSize = NSSize(width: 280, height: 360) }
@@ -286,6 +298,14 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
 
   func windowDidBecomeKey(_ notification: Notification) {
     window?.makeFirstResponder(mirrorView)
+  }
+
+  // MARK: - Files
+
+  /// Files dropped on the window go to the phone's Download folder.
+  private func send(_ urls: [URL]) {
+    guard let input = session?.input else { return }
+    files.send(urls, transport: phone.transport) { input.scanFile($0) }
   }
 
   // MARK: - Commands
@@ -514,11 +534,14 @@ final class MirrorView: NSView, NSTextInputClient {
   private var scrollFinger: CGPoint?
   private var pinch: (center: CGPoint, distance: CGFloat)?
   private var heldKeys: [UInt16: Int32] = [:]
+  var onDropFiles: (([URL]) -> Void)?
+  var onDragging: ((Bool) -> Void)?
 
   override init(frame: NSRect) {
     super.init(frame: frame)
     wantsLayer = true
     layerContentsRedrawPolicy = .never
+    registerForDraggedTypes([.fileURL])
   }
 
   required init?(coder: NSCoder) { fatalError() }
@@ -533,6 +556,29 @@ final class MirrorView: NSView, NSTextInputClient {
   override var isFlipped: Bool { true }
   override var acceptsFirstResponder: Bool { true }
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+  // MARK: Files dropped from Finder
+
+  private func fileURLs(_ info: NSDraggingInfo) -> [URL] {
+    info.draggingPasteboard.readObjects(
+      forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+  }
+
+  override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+    guard control != nil, !fileURLs(sender).isEmpty else { return [] }
+    onDragging?(true)
+    return .copy
+  }
+
+  override func draggingExited(_ sender: NSDraggingInfo?) { onDragging?(false) }
+
+  override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    onDragging?(false)
+    let urls = fileURLs(sender)
+    guard !urls.isEmpty else { return false }
+    onDropFiles?(urls)
+    return true
+  }
 
   // MARK: Coordinates
 

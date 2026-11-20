@@ -20,6 +20,17 @@ enum ADB {
   /// Runs adb and returns its combined output, or status -1 when the deadline passes.
   @discardableResult
   static func run(_ arguments: [String], timeout: TimeInterval = 10) -> Result {
+    let (status, data) = raw(arguments, timeout: timeout)
+    return Result(status: status, output: String(decoding: data, as: UTF8.self))
+  }
+
+  /// The bytes adb writes, such as a file read with `exec-out`, or nil if it fails.
+  static func data(_ arguments: [String], timeout: TimeInterval = 15) -> Data? {
+    let (status, data) = raw(arguments, timeout: timeout)
+    return status == 0 && !data.isEmpty ? data : nil
+  }
+
+  private static func raw(_ arguments: [String], timeout: TimeInterval) -> (Int32, Data) {
     let process = Process()
     process.executableURL = executable
     process.arguments = arguments
@@ -43,21 +54,21 @@ enum ADB {
       try process.run()
     } catch {
       pipe.fileHandleForReading.readabilityHandler = nil
-      return Result(status: -1, output: error.localizedDescription)
+      return (-1, Data(error.localizedDescription.utf8))
     }
     if done.wait(timeout: .now() + timeout) == .timedOut {
       process.terminate()
       _ = done.wait(timeout: .now() + 1)
       pipe.fileHandleForReading.readabilityHandler = nil
-      return Result(status: -1, output: "timed out")
+      return (-1, Data("timed out".utf8))
     }
     pipe.fileHandleForReading.readabilityHandler = nil
     let rest = pipe.fileHandleForReading.readDataToEndOfFile()
     lock.lock()
     data.append(rest)
-    let output = String(decoding: data, as: UTF8.self)
+    let output = data
     lock.unlock()
-    return Result(status: process.terminationStatus, output: output)
+    return (process.terminationStatus, output)
   }
 
   /// A long-running adb child, such as the scrcpy server shell.
