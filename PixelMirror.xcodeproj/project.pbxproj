@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		11016A44BE4180E3A48F2964 /* PhoneUnlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27A2DDE52A7630A17EDBEC2B /* PhoneUnlock.swift */; };
 		1762DEA6FD18728E3275B6D3 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15186BD95E2825A38B52FD3C /* WhatsNewView.swift */; };
 		18E6925F91631E7165888FFA /* ADB.swift in Sources */ = {isa = PBXBuildFile; fileRef = A89DFF44450DFE23CC184C29 /* ADB.swift */; };
 		1A0E523AE9ACD54D01F6CE40 /* Helpers in Resources */ = {isa = PBXBuildFile; fileRef = C674CA0EBC485EFB2A7CCE34 /* Helpers */; };
@@ -70,6 +71,7 @@
 		15186BD95E2825A38B52FD3C /* WhatsNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewView.swift; sourceTree = "<group>"; };
 		21CDAF79550A6433B558312C /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		23073DDBC865893800EEB7E1 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
+		27A2DDE52A7630A17EDBEC2B /* PhoneUnlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneUnlock.swift; sourceTree = "<group>"; };
 		33BD65B8A53CD066FCAACF23 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		3A1E75E3C78DC0ADCD88E343 /* AudioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayer.swift; sourceTree = "<group>"; };
 		50A1F5FF4F4BA231C71D9908 /* PixelMirror.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PixelMirror.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -173,6 +175,7 @@
 				FD616DF78FDBA7EABD6F4DB3 /* PhoneApps.swift */,
 				5C7B4C7822434C310145EBC2 /* PhoneFiles.swift */,
 				6F6C2E2AF7D20D31D224C8DB /* PhoneNotifications.swift */,
+				27A2DDE52A7630A17EDBEC2B /* PhoneUnlock.swift */,
 				EBBF8A78350EB0D1689A0F31 /* PixelMirrorApp.swift */,
 				21CDAF79550A6433B558312C /* Preferences.swift */,
 				23073DDBC865893800EEB7E1 /* ScreenRecorder.swift */,
@@ -352,6 +355,7 @@
 				DAF86FAD9ACC7A0EE326636E /* PhoneApps.swift in Sources */,
 				37ED7C307CF8BA1C868B86E4 /* PhoneFiles.swift in Sources */,
 				C5D48BAD396036B300DFBEB5 /* PhoneNotifications.swift in Sources */,
+				11016A44BE4180E3A48F2964 /* PhoneUnlock.swift in Sources */,
 				7489F3A4BB619EA855DB26A4 /* PixelMirrorApp.swift in Sources */,
 				C8E53C02A810B96A3C5B55E3 /* Preferences.swift in Sources */,
 				9A20436DC9E261E21D3FC12C /* ScreenRecorder.swift in Sources */,

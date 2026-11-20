@@ -233,6 +233,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   private let mirrorView = MirrorView()
   private let overlay = NSHostingView(rootView: MirrorOverlay(text: "", busy: true))
   private let notice = NSHostingView(rootView: InputBlockedNotice(maker: "", close: {}))
+  private let unlockModel = UnlockModel()
+  private lazy var unlockCard = NSHostingView(rootView: UnlockCard(model: unlockModel))
   private var session: MirrorSession?
   private let files = FileSender()
   private let keyMapper = KeyMapper()
@@ -281,6 +283,9 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     keyMapBar.translatesAutoresizingMaskIntoConstraints = false
     keyMapBar.isHidden = true
     container.addSubview(keyMapBar)
+    unlockCard.translatesAutoresizingMaskIntoConstraints = false
+    unlockCard.isHidden = true
+    container.addSubview(unlockCard)
     NSLayoutConstraint.activate([
       keyMapBar.leadingAnchor.constraint(
         greaterThanOrEqualTo: container.leadingAnchor, constant: 12),
@@ -299,6 +304,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       notice.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
       notice.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
       notice.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16),
+      unlockCard.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+      unlockCard.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -24),
     ])
     window.contentView = container
     window.addTitlebarAccessoryViewController(buttons)
@@ -312,9 +319,14 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     mirrorView.keyMapView.onChange = { [weak self] map in self?.updateKeyMapBar(map) }
     mirrorView.keyMapView.onDone = { [weak self] in self?.finishEditingKeys() }
     if let app { useKeys(of: app.package) }
+    unlockModel.onUnlock = { [weak self] pin, remember in
+      self?.unlock(with: pin, remember: remember, saved: false)
+    }
+    unlockModel.onTouchID = { [weak self] in self?.unlockWithTouchID() }
     updateTitle()
     applyShape()
     startSession()
+    if app == nil { watchLock() }
   }
 
   /// A tall phone or a wide desktop, each remembered where it was left.
@@ -418,24 +430,111 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     unlocking = true
     mirrorView.computer = false
     updateTitle()
-    lockTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-      Task { @MainActor in
-        self?.isLocked { locked in
-          guard let self, self.unlocking, !locked else { return }
-          self.stopWaitingForUnlock()
-          self.startSession()
-        }
-      }
-    }
   }
 
   private func stopWaitingForUnlock() {
     guard unlocking else { return }
     unlocking = false
-    lockTimer?.invalidate()
-    lockTimer = nil
     mirrorView.computer = computer
     updateTitle()
+  }
+
+  /// While the phone's own screen is in this window, a locked phone gets a PIN box.
+  private func watchLock() {
+    lockTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+      Task { @MainActor in self?.checkLock() }
+    }
+  }
+
+  private func checkLock() {
+    guard !ownsDisplay, session != nil, !unlockModel.working else {
+      if ownsDisplay { showUnlockCard(false) }
+      return
+    }
+    isLocked { [weak self] locked in
+      guard let self, !self.ownsDisplay, !self.unlockModel.working else { return }
+      self.showUnlockCard(locked)
+      if self.unlocking, !locked {
+        self.stopWaitingForUnlock()
+        self.startSession()
+      }
+    }
+  }
+
+  private func showUnlockCard(_ show: Bool) {
+    guard unlockCard.isHidden == show else { return }
+    unlockCard.isHidden = !show
+    if show {
+      unlockModel.saved = PhonePIN.isSaved(phone.id)
+      unlockModel.focus += 1
+    } else {
+      unlockModel.pin = ""
+      unlockModel.problem = nil
+      window?.makeFirstResponder(mirrorView)
+    }
+  }
+
+  private func unlockWithTouchID() {
+    let id = phone.id
+    let reason = String(localized: "unlock \(phone.name)")
+    unlockModel.working = true
+    DispatchQueue.global().async { [weak self] in
+      let pin = PhonePIN.read(id, reason: reason)
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.unlockModel.working = false
+        self.unlockModel.saved = PhonePIN.isSaved(id)
+        if let pin { self.unlock(with: pin, remember: false, saved: true) }
+      }
+    }
+  }
+
+  /// Opens the phone's PIN screen, types the PIN there and checks that the phone opened.
+  private func unlock(with pin: String, remember: Bool, saved: Bool) {
+    let model = unlockModel
+    model.working = true
+    model.problem = nil
+    let transport = phone.transport
+    let id = phone.id
+    DispatchQueue.global().async { [weak self] in
+      let ready = PhoneUnlock.openPINScreen(transport)
+      DispatchQueue.main.async {
+        guard let self else { return }
+        guard ready, let input = self.session?.input else {
+          model.working = false
+          model.problem = String(localized: "Couldn't open the phone's PIN screen.")
+          return
+        }
+        input.text(pin)
+        input.tap(66)  // Enter
+        self.confirmUnlock(tries: 3) { opened in
+          model.working = false
+          model.pin = ""
+          if opened {
+            if remember, !PhonePIN.save(pin, for: id) { model.canRemember = false }
+            if self.phoneScreenOff, self.app == nil {
+              self.session?.input.setScreenPower(on: false)
+            }
+            self.showUnlockCard(false)
+            self.checkLock()
+          } else {
+            if saved { PhonePIN.delete(id) }
+            model.saved = PhonePIN.isSaved(id)
+            model.problem = String(localized: "Wrong PIN")
+            model.focus += 1
+          }
+        }
+      }
+    }
+  }
+
+  private func confirmUnlock(tries: Int, _ done: @escaping @MainActor (Bool) -> Void) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+      self?.isLocked { locked in
+        if !locked || tries <= 1 { return done(!locked) }
+        self?.confirmUnlock(tries: tries - 1, done)
+      }
+    }
   }
 
   func resume(with phone: Phone) {
