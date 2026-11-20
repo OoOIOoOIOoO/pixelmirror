@@ -108,6 +108,9 @@ final class MirrorManager: ObservableObject {
     if recording != self.recording { self.recording = recording }
   }
 
+  /// The phone's own window, on its screen or its desktop.
+  func phoneWindow(of phone: Phone) -> MirrorWindowController? { controllers[phone.id] }
+
   /// The phone's own window if it is open, else one of its app windows.
   func controller(for phone: Phone) -> MirrorWindowController? {
     controllers[phone.id] ?? controllers.values.first { $0.phone.id == phone.id }
@@ -326,7 +329,14 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   func sessionDidStart(_ session: MirrorSession, deviceName: String) {
     guard session === self.session else { return }
     retries = 0
-    if phoneScreenOff, !ownsDisplay { session.input.setScreenPower(on: false) }
+    // The phone window, on the phone's screen or its desktop, owns the screen switch.
+    guard phoneScreenOff, app == nil else { return }
+    session.input.setScreenPower(on: false)
+    // A session that just ended lights the screen again as it cleans up; turn it off after it.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+      guard let self, session === self.session, self.phoneScreenOff else { return }
+      session.input.setScreenPower(on: false)
+    }
   }
 
   func session(_ session: MirrorSession, videoSizeChanged size: CGSize) {
@@ -654,6 +664,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   func notifications() { session?.input.expandNotifications() }
 
   func togglePhoneScreen() {
+    // An app window passes it on: the phone window keeps the screen dark and shows the sun.
+    if app != nil { return MirrorManager.shared.phoneWindow(of: phone)?.togglePhoneScreen() ?? () }
     phoneScreenOff.toggle()
     session?.input.setScreenPower(on: !phoneScreenOff)
     buttons.update(screenOn: !phoneScreenOff)
