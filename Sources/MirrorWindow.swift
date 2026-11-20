@@ -17,6 +17,31 @@ final class MirrorManager: ObservableObject {
 
   /// Phones whose window someone closed: they are not reopened until they disconnect.
   private var dismissed: Set<String> = []
+  /// Phones whose own window turned their screen off, to lock once their last window closes.
+  private var darkened: Set<String> = []
+  private var quitting = false
+
+  private init() {
+    NotificationCenter.default.addObserver(
+      forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+    ) { _ in
+      MainActor.assumeIsolated { MirrorManager.shared.quit() }
+    }
+  }
+
+  /// Ends every session, then leaves each phone as the app found it, before the app exits.
+  private func quit() {
+    quitting = true
+    let phones = live
+    for controller in controllers.values { controller.close() }
+    for phone in phones {
+      PhonePower.release(phone, lock: darkened.contains(phone.id) && phoneScreenOff, settle: true)
+    }
+  }
+
+  private var phoneScreenOff: Bool {
+    UserDefaults.standard.object(forKey: "phoneScreenOff") as? Bool ?? true
+  }
 
   /// Phones shown as a computer desktop instead of a phone screen.
   @Published private(set) var computers = Set(
@@ -79,14 +104,21 @@ final class MirrorManager: ObservableObject {
     }
     let controller = make()
     let isPhone = controller.app == nil
-    let phoneID = controller.phone.id
+    let phone = controller.phone
+    let phoneID = phone.id
+    if !controllers.values.contains(where: { $0.phone.id == phoneID }) {
+      PhonePower.keepAwake(phone)
+    }
+    if isPhone { darkened.insert(phoneID) }
     controller.onClose = { [weak self] in
-      self?.controllers[key] = nil
+      guard let self else { return }
+      self.controllers[key] = nil
       if isPhone {
-        self?.mirroring.remove(phoneID)
-        self?.dismissed.insert(phoneID)
+        self.mirroring.remove(phoneID)
+        self.dismissed.insert(phoneID)
       }
-      self?.sessionsChanged()
+      self.sessionsChanged()
+      self.releaseIfLast(phone)
     }
     controllers[key] = controller
     if isPhone { mirroring.insert(phoneID) }
@@ -106,6 +138,23 @@ final class MirrorManager: ObservableObject {
     if phones != live { live = phones }
     let recording = controllers.values.contains { $0.isRecording }
     if recording != self.recording { self.recording = recording }
+  }
+
+  /// Once a phone's last window has closed, gives it back its own settings, and locks it
+  /// if this app had turned its screen off.
+  private func releaseIfLast(_ phone: Phone) {
+    guard !quitting, !controllers.values.contains(where: { $0.phone.id == phone.id }) else {
+      return
+    }
+    let lock = darkened.contains(phone.id) && phoneScreenOff
+    // The mirror's own cleanup lights the screen as it ends; let it finish first.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+      guard let self, !self.quitting,
+        !self.controllers.values.contains(where: { $0.phone.id == phone.id })
+      else { return }
+      self.darkened.remove(phone.id)
+      DispatchQueue.global().async { PhonePower.release(phone, lock: lock, settle: false) }
+    }
   }
 
   /// The phone's own window, on its screen or its desktop.
@@ -131,6 +180,41 @@ final class MirrorManager: ObservableObject {
   /// The phone the next command is for: the one in front, else the only one there is.
   var currentPhone: Phone? {
     keyController?.phone ?? DeviceHub.shared.phones.first
+  }
+}
+
+/// Keeps a mirrored phone awake on its charger, and puts its own Stay awake setting back
+/// once mirroring ends. Mirroring sessions overlap, so the app keeps the original, not each one.
+enum PhonePower {
+  private static func key(_ phone: Phone) -> String { "stayAwake.\(phone.id)" }
+
+  static func keepAwake(_ phone: Phone) {
+    let key = key(phone)
+    let transport = phone.transport
+    DispatchQueue.global().async {
+      if UserDefaults.standard.string(forKey: key) == nil {
+        let value = ADB.shell(transport, "settings get global stay_on_while_plugged_in")
+        guard Int(value) != nil else { return }
+        UserDefaults.standard.set(value, forKey: key)
+      }
+      _ = ADB.shell(transport, "settings put global stay_on_while_plugged_in 7")
+    }
+  }
+
+  /// Restores the setting and, when `lock`, presses the power key like a phone laid face down.
+  /// `settle` first waits on the phone for the mirror's own cleanup, which lights the screen.
+  nonisolated static func release(_ phone: Phone, lock: Bool, settle: Bool) {
+    let key = key(phone)
+    var steps = settle ? ["sleep 1"] : []
+    if let original = UserDefaults.standard.string(forKey: key), Int(original) != nil {
+      steps.append("settings put global stay_on_while_plugged_in \(original)")
+    }
+    if lock {
+      steps.append("dumpsys power | grep -q 'mWakefulness=Awake' && input keyevent KEYCODE_POWER")
+    }
+    guard !steps.isEmpty else { return }
+    _ = ADB.shell(phone.transport, steps.joined(separator: "; "))
+    UserDefaults.standard.removeObject(forKey: key)
   }
 }
 

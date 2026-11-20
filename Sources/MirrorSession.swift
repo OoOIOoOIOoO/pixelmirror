@@ -142,7 +142,7 @@ final class MirrorSession: @unchecked Sendable {
     var options = [
       "scid=\(scid)", "log_level=info", "tunnel_forward=true", "video_codec=h264",
       "max_size=\(sharp ? 0 : 1920)", "video_bit_rate=\(sharp ? 16_000_000 : 8_000_000)",
-      "max_fps=60", "stay_awake=true", "clipboard_autosync=true", "power_off_on_close=false",
+      "max_fps=60", "stay_awake=false", "clipboard_autosync=true", "power_off_on_close=false",
       "cleanup=true",
     ]
     if let display {
