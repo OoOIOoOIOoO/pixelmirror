@@ -15,6 +15,7 @@
 		56EBD025F99C67460C63B7F2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AF00964A122CA3B95C78A473 /* Assets.xcassets */; };
 		5E06F6DF68CB644A4444548F /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E5EC94DE21AEDD2B0A4F1674 /* InfoPlist.xcstrings */; };
 		5E3282EFBF787D93A33F2E12 /* AudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1E75E3C78DC0ADCD88E343 /* AudioPlayer.swift */; };
+		6AFB4EB9610E54B485607708 /* StatusMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F4D3EAE2A6BA2DF7C89D0FC /* StatusMenu.swift */; };
 		71D1ABDB220C32481770B2C3 /* MirrorSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6424503747E1F4C560994DE9 /* MirrorSession.swift */; };
 		7489F3A4BB619EA855DB26A4 /* PixelMirrorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBBF8A78350EB0D1689A0F31 /* PixelMirrorApp.swift */; };
 		793B4BD706539C48C3F78CAA /* KeyMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = D14120A8302D92C6C556FB87 /* KeyMapping.swift */; };
@@ -43,6 +44,7 @@
 		3A1E75E3C78DC0ADCD88E343 /* AudioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayer.swift; sourceTree = "<group>"; };
 		50A1F5FF4F4BA231C71D9908 /* PixelMirror.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PixelMirror.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5C7B4C7822434C310145EBC2 /* PhoneFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneFiles.swift; sourceTree = "<group>"; };
+		5F4D3EAE2A6BA2DF7C89D0FC /* StatusMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenu.swift; sourceTree = "<group>"; };
 		627E1CE0CB9EC2DB4127C5AA /* Showcase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Showcase.swift; sourceTree = "<group>"; };
 		6424503747E1F4C560994DE9 /* MirrorSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorSession.swift; sourceTree = "<group>"; };
 		65C997E9F17BB40B9FEC7DE0 /* Telemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Telemetry.swift; sourceTree = "<group>"; };
@@ -121,6 +123,7 @@
 				23073DDBC865893800EEB7E1 /* ScreenRecorder.swift */,
 				0F1BB8279B868E52343BCD76 /* SettingsChrome.swift */,
 				627E1CE0CB9EC2DB4127C5AA /* Showcase.swift */,
+				5F4D3EAE2A6BA2DF7C89D0FC /* StatusMenu.swift */,
 				65C997E9F17BB40B9FEC7DE0 /* Telemetry.swift */,
 				15186BD95E2825A38B52FD3C /* WhatsNewView.swift */,
 			);
@@ -272,6 +275,7 @@
 				9A20436DC9E261E21D3FC12C /* ScreenRecorder.swift in Sources */,
 				C024BCCB5A0B611813B7DCF5 /* SettingsChrome.swift in Sources */,
 				BD5EAFACDE8AD1B0CB8C9501 /* Showcase.swift in Sources */,
+				6AFB4EB9610E54B485607708 /* StatusMenu.swift in Sources */,
 				F35639FFD284023BD6828965 /* Telemetry.swift in Sources */,
 				1762DEA6FD18728E3275B6D3 /* WhatsNewView.swift in Sources */,
 			);

@@ -9,6 +9,9 @@ final class MirrorManager: ObservableObject {
   static let shared = MirrorManager()
 
   @Published private(set) var mirroring: Set<String> = []
+  /// Phones with any window open, shown in the menu bar while they are.
+  @Published private(set) var live: [Phone] = []
+  @Published private(set) var recording = false
   /// Phone windows by phone id, app windows by phone id and package.
   private var controllers: [String: MirrorWindowController] = [:]
 
@@ -19,6 +22,7 @@ final class MirrorManager: ObservableObject {
     for controller in controllers.values where controller.phone.id == phone.id {
       controller.resume(with: phone)
     }
+    sessionsChanged()
     if controllers[phone.id] == nil, !dismissed.contains(phone.id) {
       open(phone)
     }
@@ -30,6 +34,7 @@ final class MirrorManager: ObservableObject {
     for controller in controllers.values where !present.contains(controller.phone.id) {
       controller.phoneWentAway()
     }
+    sessionsChanged()
   }
 
   func open(_ phone: Phone) {
@@ -59,12 +64,38 @@ final class MirrorManager: ObservableObject {
         self?.mirroring.remove(phoneID)
         self?.dismissed.insert(phoneID)
       }
+      self?.sessionsChanged()
     }
     controllers[key] = controller
     if isPhone { mirroring.insert(phoneID) }
+    sessionsChanged()
     controller.showWindow(nil)
     controller.window?.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+  }
+
+  func sessionsChanged() {
+    var phones: [Phone] = []
+    for controller in controllers.values
+    where !phones.contains(where: { $0.id == controller.phone.id }) {
+      phones.append(controller.phone)
+    }
+    phones.sort { $0.name < $1.name }
+    if phones != live { live = phones }
+    let recording = controllers.values.contains { $0.isRecording }
+    if recording != self.recording { self.recording = recording }
+  }
+
+  /// The phone's own window if it is open, else one of its app windows.
+  func controller(for phone: Phone) -> MirrorWindowController? {
+    controllers[phone.id] ?? controllers.values.first { $0.phone.id == phone.id }
+  }
+
+  /// Closes every window of the phone.
+  func stop(_ phone: Phone) {
+    for controller in controllers.values where controller.phone.id == phone.id {
+      controller.close()
+    }
   }
 
   var keyController: MirrorWindowController? {
@@ -508,6 +539,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       return
     }
     recordingStart = Date()
+    MirrorManager.shared.sessionsChanged()
     Capture.play("begin_record.caf")
     buttons.update(recording: true)
     updateTitle()
@@ -518,6 +550,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
 
   func session(_ session: MirrorSession, recordingFinished url: URL?) {
     recordingStart = nil
+    MirrorManager.shared.sessionsChanged()
     recordingTimer?.invalidate()
     recordingTimer = nil
     buttons.update(recording: false)

@@ -14,6 +14,7 @@ struct PixelMirrorApp: App {
     hub.onPhonesChanged = { mirrors.phonesChanged($0) }
     hub.start()
     PhoneNotifications.shared.start()
+    StatusMenu.shared.start()
   }
 
   var body: some Scene {
