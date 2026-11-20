@@ -18,6 +18,26 @@ final class MirrorManager: ObservableObject {
   /// Phones whose window someone closed: they are not reopened until they disconnect.
   private var dismissed: Set<String> = []
 
+  /// Phones shown as a computer desktop instead of a phone screen.
+  @Published private(set) var computers = Set(
+    UserDefaults.standard.stringArray(forKey: "computerPhones") ?? [])
+
+  /// Switches a phone, by default the one in front, between its own screen and a desktop.
+  func toggleComputer(_ phone: Phone? = nil) {
+    guard let phone = phone ?? currentPhone else { return }
+    if computers.contains(phone.id) {
+      computers.remove(phone.id)
+    } else {
+      computers.insert(phone.id)
+    }
+    UserDefaults.standard.set(Array(computers), forKey: "computerPhones")
+    if let controller = controllers[phone.id] {
+      controller.setComputer(computers.contains(phone.id))
+    } else {
+      open(phone)
+    }
+  }
+
   func phoneBecameReady(_ phone: Phone) {
     for controller in controllers.values where controller.phone.id == phone.id {
       controller.resume(with: phone)
@@ -39,7 +59,9 @@ final class MirrorManager: ObservableObject {
 
   func open(_ phone: Phone) {
     dismissed.remove(phone.id)
-    show(key: phone.id) { MirrorWindowController(phone: phone) }
+    show(key: phone.id) {
+      MirrorWindowController(phone: phone, computer: computers.contains(phone.id))
+    }
   }
 
   /// Opens a phone app in a Mac window of its own.
@@ -113,6 +135,10 @@ final class MirrorManager: ObservableObject {
 final class MirrorWindowController: NSWindowController, NSWindowDelegate, MirrorSessionDelegate {
   private(set) var phone: Phone
   let app: PhoneApp?
+  /// The phone's desktop, with a taskbar and windows, at the size of this window.
+  private(set) var computer: Bool
+  /// An app or a desktop has a display of its own, which follows the window.
+  private var ownsDisplay: Bool { app != nil || computer }
   private let mirrorView = MirrorView()
   private let overlay = NSHostingView(rootView: MirrorOverlay(text: "", busy: true))
   private let notice = NSHostingView(rootView: InputBlockedNotice(maker: "", close: {}))
@@ -133,9 +159,10 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   @AppStorage("phoneScreenOff") private var phoneScreenOff = true
   private lazy var buttons = PhoneButtons(controller: self)
 
-  init(phone: Phone, app: PhoneApp? = nil) {
+  init(phone: Phone, app: PhoneApp? = nil, computer: Bool = false) {
     self.phone = phone
     self.app = app
+    self.computer = computer && app == nil
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: app == nil ? 360 : 400, height: 780),
       styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -145,8 +172,6 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     window.appearance = NSAppearance(named: .darkAqua)
     window.collectionBehavior.insert(.fullScreenPrimary)
     window.isReleasedWhenClosed = false
-    let frameName = app.map { "App-\($0.package)" } ?? "Mirror-\(phone.id)"
-    window.setFrameAutosaveName(frameName)
     super.init(window: window)
     window.delegate = self
 
@@ -197,8 +222,58 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     mirrorView.keyMapView.onDone = { [weak self] in self?.finishEditingKeys() }
     if let app { useKeys(of: app.package) }
     updateTitle()
-    if !window.setFrameUsingName(frameName) { window.center() }
-    if app != nil { window.contentMinSize = NSSize(width: 280, height: 360) }
+    applyShape()
+    startSession()
+  }
+
+  /// A tall phone or a wide desktop, each remembered where it was left.
+  private func applyShape() {
+    guard let window else { return }
+    let name =
+      app.map { "App-\($0.package)" } ?? (computer ? "Computer-\(phone.id)" : "Mirror-\(phone.id)")
+    let saved = UserDefaults.standard.string(forKey: "NSWindow Frame \(name)")
+    window.setFrameAutosaveName(name)
+    window.acceptsMouseMovedEvents = computer
+    mirrorView.computer = computer
+    if ownsDisplay {
+      window.contentResizeIncrements = NSSize(width: 1, height: 1)  // no aspect ratio
+      window.contentMinSize =
+        computer ? NSSize(width: 640, height: 400) : NSSize(width: 280, height: 360)
+    } else {
+      window.contentMinSize = NSSize(width: 160, height: 160)
+    }
+    if let saved {
+      window.setFrame(from: saved)
+    } else if computer, let screen = window.screen ?? NSScreen.main {
+      let visible = screen.visibleFrame
+      let size = NSSize(
+        width: min(1280, visible.width * 0.9), height: min(800, visible.height * 0.85))
+      window.setFrame(
+        window.frameRect(forContentRect: NSRect(origin: .zero, size: size)), display: true)
+      window.center()
+    } else if !computer, app == nil {
+      window.setContentSize(NSSize(width: 360, height: 780))
+      window.center()
+    } else {
+      window.center()
+    }
+  }
+
+  /// Switches this window between the phone's screen and its desktop.
+  func setComputer(_ on: Bool) {
+    guard app == nil, on != computer else { return }
+    if isRecording { session?.stopRecording() }
+    session?.delegate = nil
+    session?.stop()
+    session = nil
+    computer = on
+    videoSize = .zero
+    mirrorView.videoSize = .zero
+    mirrorView.displayLayer.flushAndRemoveImage()
+    applyShape()
+    updateTitle()
+    buttons.update(screenOn: isPhoneScreenOn)
+    retries = 0
     startSession()
   }
 
@@ -211,9 +286,12 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     session?.stop()
     showOverlay(String(localized: "Connecting to \(phone.name)…"), busy: true)
     notice.isHidden = true
+    let display =
+      ownsDisplay
+      ? MirrorSession.OwnDisplay(package: app?.package, size: displaySize, dpi: dpi) : nil
     let session = MirrorSession(
       transport: phone.transport, isUSB: phone.isUSB, renderer: mirrorView.displayLayer,
-      app: app.map { MirrorSession.AppLaunch(package: $0.package, size: displaySize, dpi: dpi) })
+      display: display)
     session.delegate = self
     mirrorView.control = session.input
     keyMapper.control = session.input
@@ -247,7 +325,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   func sessionDidStart(_ session: MirrorSession, deviceName: String) {
     guard session === self.session else { return }
     retries = 0
-    if phoneScreenOff, app == nil { session.input.setScreenPower(on: false) }
+    if phoneScreenOff, !ownsDisplay { session.input.setScreenPower(on: false) }
   }
 
   func session(_ session: MirrorSession, videoSizeChanged size: CGSize) {
@@ -259,8 +337,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     videoSize = size
     mirrorView.videoSize = size
     keyMapper.videoSize = size
-    // An app's display follows its window, not the other way round.
-    if app == nil { fit(to: size, resize: first || rotated) }
+    // An app's or a desktop's display follows its window, not the other way round.
+    if !ownsDisplay { fit(to: size, resize: first || rotated) }
   }
 
   func sessionDidEnd(_ session: MirrorSession, error: String?) {
@@ -311,11 +389,11 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
 
   // While recording, the display keeps its size: one recording has one size.
   func windowDidEndLiveResize(_ notification: Notification) {
-    if app != nil, !isRecording { session?.input.resizeDisplay(displaySize) }
+    if ownsDisplay, !isRecording { session?.input.resizeDisplay(displaySize) }
   }
 
   func windowDidResize(_ notification: Notification) {
-    guard app != nil, !isRecording, window?.inLiveResize == false else { return }
+    guard ownsDisplay, !isRecording, window?.inLiveResize == false else { return }
     session?.input.resizeDisplay(displaySize)
   }
 
@@ -363,7 +441,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       window?.makeFirstResponder(mirrorView)
     }
     // The phone's own screen shows whichever app is in front, so follow it while keys are saved.
-    guard app == nil else { return }
+    guard app == nil, !computer else { return }
     followForegroundApp()
     foregroundTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
       Task { @MainActor in self?.followForegroundApp() }
@@ -387,7 +465,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   }
 
   private func followForegroundApp(then done: (() -> Void)? = nil) {
-    guard app == nil, KeyMap.anySaved || done != nil, !mirrorView.keyMapView.editing else {
+    guard app == nil, !computer, KeyMap.anySaved || done != nil, !mirrorView.keyMapView.editing
+    else {
       done?()
       return
     }
@@ -502,7 +581,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     let frame = session?.currentFrame.flatMap {
       NSBitmapImageRep(cgImage: $0).representation(using: .png, properties: [:])
     }
-    guard app == nil else { return saveScreenshot(frame, to: url) }
+    guard !ownsDisplay else { return saveScreenshot(frame, to: url) }
     // The phone's own capture is sharper than the stream over Wi-Fi.
     let transport = phone.transport
     DispatchQueue.global().async {
@@ -805,6 +884,8 @@ final class MirrorView: NSView, NSTextInputClient {
   var videoSize = CGSize.zero {
     didSet { needsLayout = true }
   }
+  /// On a desktop the pointer is a mouse: it hovers, right-clicks and scrolls with a wheel.
+  var computer = false
 
   private var marked = NSMutableAttributedString()
   private var scrollFinger: CGPoint?
@@ -896,23 +977,48 @@ final class MirrorView: NSView, NSTextInputClient {
     return rect.width > 0 ? videoSize.width / rect.width : 1
   }
 
-  // MARK: Mouse: the pointer is a finger
+  // MARK: Mouse: the pointer is a finger, or on a desktop a mouse
 
   override func mouseDown(with event: NSEvent) {
     window?.makeFirstResponder(self)
-    control?.touch(.down, pointer: ControlChannel.Pointer.mouse, at: phonePoint(event))
+    press(.down, event, button: ControlChannel.Button.primary)
   }
 
   override func mouseDragged(with event: NSEvent) {
-    control?.touch(.move, pointer: ControlChannel.Pointer.mouse, at: phonePoint(event))
+    press(.move, event, button: ControlChannel.Button.primary)
   }
 
   override func mouseUp(with event: NSEvent) {
-    control?.touch(.up, pointer: ControlChannel.Pointer.mouse, at: phonePoint(event))
+    press(.up, event, button: ControlChannel.Button.primary)
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    guard computer, videoRect.contains(convert(event.locationInWindow, from: nil)) else { return }
+    control?.touch(.hover, pointer: ControlChannel.Pointer.cursor, at: phonePoint(event))
   }
 
   override func rightMouseDown(with event: NSEvent) {
-    control?.backOrScreenOn()
+    guard computer else { return control?.backOrScreenOn() ?? () }
+    window?.makeFirstResponder(self)
+    press(.down, event, button: ControlChannel.Button.secondary)
+  }
+
+  override func rightMouseDragged(with event: NSEvent) {
+    if computer { press(.move, event, button: ControlChannel.Button.secondary) }
+  }
+
+  override func rightMouseUp(with event: NSEvent) {
+    if computer { press(.up, event, button: ControlChannel.Button.secondary) }
+  }
+
+  private func press(_ action: ControlChannel.Action, _ event: NSEvent, button: Int32) {
+    guard computer else {
+      control?.touch(action, pointer: ControlChannel.Pointer.mouse, at: phonePoint(event))
+      return
+    }
+    control?.touch(
+      action, pointer: ControlChannel.Pointer.cursor, at: phonePoint(event),
+      button: action == .move ? 0 : button, buttons: action == .up ? 0 : button)
   }
 
   override func otherMouseDown(with event: NSEvent) {
@@ -923,6 +1029,13 @@ final class MirrorView: NSView, NSTextInputClient {
 
   override func scrollWheel(with event: NSEvent) {
     guard let control else { return }
+    if computer, event.hasPreciseScrollingDeltas {
+      // A desktop scrolls what is under the pointer, as a wheel does; one wheel step is 64 dp.
+      control.scroll(
+        at: phonePoint(event), horizontal: -event.scrollingDeltaX / 64,
+        vertical: event.scrollingDeltaY / 64)
+      return
+    }
     guard event.hasPreciseScrollingDeltas, event.phase != [] || event.momentumPhase != [] else {
       // A mouse wheel: real scroll steps.
       control.scroll(

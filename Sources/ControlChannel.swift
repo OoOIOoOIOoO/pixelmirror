@@ -7,6 +7,12 @@ final class ControlChannel: @unchecked Sendable {
     case down = 0
     case up = 1
     case move = 2
+    case hover = 7
+  }
+
+  enum Button {
+    static let primary: Int32 = 1
+    static let secondary: Int32 = 2
   }
 
   enum Key {
@@ -28,6 +34,7 @@ final class ControlChannel: @unchecked Sendable {
 
   enum Pointer {
     static let mouse: Int64 = -2  // a finger that follows the mouse
+    static let cursor: Int64 = -1  // a real mouse pointer: hovers, and its right button clicks
     static let scroll: Int64 = -5  // a finger that follows two-finger trackpad scrolling
     static let pinchA: Int64 = -3
     static let pinchB: Int64 = -4
@@ -64,15 +71,18 @@ final class ControlChannel: @unchecked Sendable {
     send(m)
   }
 
-  func touch(_ action: Action, pointer: Int64, at point: CGPoint, pressure: Float = 1) {
+  func touch(
+    _ action: Action, pointer: Int64, at point: CGPoint, pressure: Float = 1,
+    button: Int32 = 0, buttons: Int32 = 0
+  ) {
     guard videoSize.width > 0 else { return }
     var m = Message(2)
     m.u8(action.rawValue)
     m.i64(pointer)
     position(&m, point)
-    m.u16(action == .up ? 0 : UInt16(min(max(pressure, 0), 1) * 65535))
-    m.i32(0)  // action button
-    m.i32(0)  // buttons
+    m.u16(action == .up || action == .hover ? 0 : UInt16(min(max(pressure, 0), 1) * 65535))
+    m.i32(button)  // the button that changed
+    m.i32(buttons)  // the buttons held now
     send(m)
   }
 

@@ -22,15 +22,18 @@ final class MirrorSession: @unchecked Sendable {
   let transport: String
   let isUSB: Bool
   let renderer: AVSampleBufferDisplayLayer
-  /// An app in a display of its own, instead of the phone's screen.
-  let app: AppLaunch?
+  /// A display of its own instead of the phone's screen: for one app, or a whole desktop.
+  let display: OwnDisplay?
   weak var delegate: MirrorSessionDelegate?
 
-  struct AppLaunch {
-    var package: String
+  struct OwnDisplay {
+    var package: String?  // nil: the phone's desktop, with a taskbar and free windows
     var size: CGSize  // pixels
     var dpi: Int
   }
+
+  /// Sound comes from the phone window or the desktop; an app window stays quiet.
+  private var hasAudio: Bool { display?.package == nil }
 
   private(set) var videoSize = CGSize.zero
   private let control = ControlChannel()
@@ -46,12 +49,13 @@ final class MirrorSession: @unchecked Sendable {
   private var recorder: ScreenRecorder?
 
   init(
-    transport: String, isUSB: Bool, renderer: AVSampleBufferDisplayLayer, app: AppLaunch? = nil
+    transport: String, isUSB: Bool, renderer: AVSampleBufferDisplayLayer,
+    display: OwnDisplay? = nil
   ) {
     self.transport = transport
     self.isUSB = isUSB
     self.renderer = renderer
-    self.app = app
+    self.display = display
   }
 
   var input: ControlChannel { control }
@@ -80,7 +84,7 @@ final class MirrorSession: @unchecked Sendable {
 
   /// Records from the next key frame, which the phone sends at once on request.
   func startRecording(to url: URL) throws {
-    let recorder = try ScreenRecorder(url: url, hasAudio: app == nil)
+    let recorder = try ScreenRecorder(url: url, hasAudio: hasAudio)
     lock.lock()
     self.recorder = recorder
     lock.unlock()
@@ -131,23 +135,25 @@ final class MirrorSession: @unchecked Sendable {
     else { throw Failure(description: "forward: \(forward.output)") }
     forwardPort = port
 
+    // A cable carries the full resolution; Wi-Fi gets a size and rate it can keep up with.
+    // A desktop is mostly still text, which needs every pixel and compresses well.
+    let desktop = display != nil && display?.package == nil
+    let sharp = isUSB || desktop
     var options = [
       "scid=\(scid)", "log_level=info", "tunnel_forward=true", "video_codec=h264",
-      // A cable carries the full resolution; Wi-Fi gets a size and rate it can keep up with.
-      "max_size=\(isUSB ? 0 : 1920)", "video_bit_rate=\(isUSB ? 16_000_000 : 8_000_000)",
+      "max_size=\(sharp ? 0 : 1920)", "video_bit_rate=\(sharp ? 16_000_000 : 8_000_000)",
       "max_fps=60", "stay_awake=true", "clipboard_autosync=true", "power_off_on_close=false",
       "cleanup=true",
     ]
-    if let app {
-      // The app gets a display of its own that follows the window's size. Its sound
-      // already plays through the phone window, and its keyboard stays off the phone.
+    if let display {
+      // A display of its own that follows the window's size; its keyboard stays off the phone.
       options += [
-        "audio=false", "new_display=\(Int(app.size.width))x\(Int(app.size.height))/\(app.dpi)",
+        "new_display=\(Int(display.size.width))x\(Int(display.size.height))/\(display.dpi)",
         "flex_display=true", "display_ime_policy=hide",
       ]
-    } else {
-      options += ["audio_codec=raw", "audio_source=playback", "audio_dup=false"]
     }
+    options +=
+      hasAudio ? ["audio_codec=raw", "audio_source=playback", "audio_dup=false"] : ["audio=false"]
     let command =
       "CLASSPATH=\(remote) app_process / com.genymobile.scrcpy.Server \(ADB.serverVersion) "
       + options.joined(separator: " ")
@@ -164,6 +170,7 @@ final class MirrorSession: @unchecked Sendable {
         let match = self.serverLog.firstMatch(of: #/New display: \S+ \(id=(\d+)\)/#)
       {
         self.appDisplay = Int(match.1)
+        if desktop, let id = self.appDisplay { self.makeFreeform(id) }
       }
       let blocked = !self.inputBlocked && self.serverLog.contains("INJECT_EVENTS")
       if blocked { self.inputBlocked = true }
@@ -193,8 +200,8 @@ final class MirrorSession: @unchecked Sendable {
       }
     }
     guard let video else { throw Failure(description: "The phone did not answer. \(log)") }
-    let audioSocket = app == nil ? StreamSocket.connect(port: port) : nil
-    guard app != nil || audioSocket != nil,
+    let audioSocket = hasAudio ? StreamSocket.connect(port: port) : nil
+    guard !hasAudio || audioSocket != nil,
       let controlSocket = StreamSocket.connect(port: port, noDelay: true)
     else { throw Failure(description: "Could not open the audio and control channels.") }
     lock.lock()
@@ -207,7 +214,7 @@ final class MirrorSession: @unchecked Sendable {
     DispatchQueue.main.async { self.delegate?.sessionDidStart(self, deviceName: name) }
 
     if let audioSocket { Thread.detachNewThread { [self] in readAudio(audioSocket) } }
-    if let app { control.startApp(app.package) }
+    if let package = display?.package { control.startApp(package) }
     Thread.detachNewThread { [self] in control.readDeviceMessages() }
     readVideo(video)
   }
@@ -218,7 +225,17 @@ final class MirrorSession: @unchecked Sendable {
     return stopped
   }
 
-  /// The id of the app's own display, once the phone has made it.
+  /// Windows on the desktop open side by side with title bars, as on a computer.
+  /// Where the phone does not support it, apps simply fill the desktop.
+  private func makeFreeform(_ id: Int) {
+    let transport = transport
+    DispatchQueue.global().async {
+      ADB.run(
+        ["-s", transport, "shell", "cmd window set-display-windowing-mode -d \(id) 5"], timeout: 5)
+    }
+  }
+
+  /// The id of the display of its own, once the phone has made it.
   var displayID: Int? {
     lock.lock()
     defer { lock.unlock() }

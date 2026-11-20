@@ -67,6 +67,7 @@ struct WindowCommands: Commands {
 struct PhoneCommands: Commands {
   @ObservedObject private var hub = DeviceHub.shared
   @ObservedObject private var webcam = Webcam.shared
+  @ObservedObject private var mirrors = MirrorManager.shared
 
   var body: some Commands {
     CommandMenu("Phone") {
@@ -93,6 +94,14 @@ struct PhoneCommands: Commands {
         )
         .disabled(hub.phones.isEmpty)
       }
+      Toggle(
+        "Computer Mode",
+        isOn: Binding(
+          get: { mirrors.currentPhone.map { mirrors.computers.contains($0.id) } ?? false },
+          set: { _ in mirrors.toggleComputer() })
+      )
+      .keyboardShortcut("d", modifiers: [.command, .shift])
+      .disabled(hub.phones.isEmpty)
       Divider()
       Button("Take Screenshot") { MirrorManager.shared.keyController?.takeScreenshot() }
         .keyboardShortcut("s", modifiers: [.command, .option])

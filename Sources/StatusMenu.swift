@@ -63,6 +63,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
       let controller = mirrors.controller(for: phone)
       menu.addItem(action(String(localized: "Show")) { mirrors.open(phone) })
       menu.addItem(action(String(localized: "Open App…")) { AppPicker.shared.show(for: phone) })
+      let computer = action(String(localized: "Computer Mode")) { mirrors.toggleComputer(phone) }
+      computer.state = mirrors.computers.contains(phone.id) ? .on : .off
+      menu.addItem(computer)
       menu.addItem(action(String(localized: "Take Screenshot")) { controller?.takeScreenshot() })
       menu.addItem(
         action(
