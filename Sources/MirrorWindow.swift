@@ -141,7 +141,11 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   /// The phone's desktop, with a taskbar and windows, at the size of this window.
   private(set) var computer: Bool
   /// An app or a desktop has a display of its own, which follows the window.
-  private var ownsDisplay: Bool { app != nil || computer }
+  private var ownsDisplay: Bool { app != nil || (computer && !unlocking) }
+  /// A locked phone gives its desktop no taskbar, so the desktop waits on its lock screen.
+  private var unlocking = false
+  private var lockTimer: Timer?
+  private var lockCheck: UUID?
   private let mirrorView = MirrorView()
   private let overlay = NSHostingView(rootView: MirrorOverlay(text: "", busy: true))
   private let notice = NSHostingView(rootView: InputBlockedNotice(maker: "", close: {}))
@@ -270,6 +274,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     session?.stop()
     session = nil
     computer = on
+    stopWaitingForUnlock()
     videoSize = .zero
     mirrorView.videoSize = .zero
     mirrorView.displayLayer.flushAndRemoveImage()
@@ -288,8 +293,20 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   private func startSession() {
     session?.delegate = nil
     session?.stop()
+    session = nil
     showOverlay(String(localized: "Connecting to \(phone.name)…"), busy: true)
     notice.isHidden = true
+    guard computer, !unlocking else { return openSession() }
+    let check = UUID()
+    lockCheck = check
+    isLocked { [weak self] locked in
+      guard let self, self.lockCheck == check, self.computer, self.session == nil else { return }
+      if locked { self.waitForUnlock() }
+      self.openSession()
+    }
+  }
+
+  private func openSession() {
     let display =
       ownsDisplay
       ? MirrorSession.OwnDisplay(package: app?.package, size: displaySize, dpi: dpi) : nil
@@ -301,6 +318,40 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     keyMapper.control = session.input
     self.session = session
     session.start()
+  }
+
+  private func isLocked(_ done: @escaping @MainActor (Bool) -> Void) {
+    let transport = phone.transport
+    DispatchQueue.global().async {
+      let policy = ADB.shell(transport, "dumpsys window policy | grep -A1 KeyguardServiceDelegate")
+      let locked = policy.contains("showing=true")
+      DispatchQueue.main.async { done(locked) }
+    }
+  }
+
+  /// Shows the phone's lock screen, to unlock from here, and opens the desktop once it is unlocked.
+  private func waitForUnlock() {
+    unlocking = true
+    mirrorView.computer = false
+    updateTitle()
+    lockTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+      Task { @MainActor in
+        self?.isLocked { locked in
+          guard let self, self.unlocking, !locked else { return }
+          self.stopWaitingForUnlock()
+          self.startSession()
+        }
+      }
+    }
+  }
+
+  private func stopWaitingForUnlock() {
+    guard unlocking else { return }
+    unlocking = false
+    lockTimer?.invalidate()
+    lockTimer = nil
+    mirrorView.computer = computer
+    updateTitle()
   }
 
   func resume(with phone: Phone) {
@@ -349,7 +400,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     mirrorView.videoSize = size
     keyMapper.videoSize = size
     // An app's or a desktop's display follows its window, not the other way round.
-    if !ownsDisplay { fit(to: size, resize: first || rotated) }
+    if !ownsDisplay, !unlocking { fit(to: size, resize: first || rotated) }
   }
 
   func sessionDidEnd(_ session: MirrorSession, error: String?) {
@@ -385,7 +436,10 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       return
     }
     window?.title = phone.name
-    window?.subtitle = phone.isUSB ? String(localized: "USB") : String(localized: "Wi-Fi")
+    window?.subtitle =
+      unlocking
+      ? String(localized: "Unlock the phone to open its desktop")
+      : phone.isUSB ? String(localized: "USB") : String(localized: "Wi-Fi")
   }
 
   /// An app's display in pixels: the window's size, so one Mac point is one Android dp.
@@ -439,6 +493,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   }
 
   func windowWillClose(_ notification: Notification) {
+    lockTimer?.invalidate()
     session?.delegate = nil
     session?.stop()
     session = nil
