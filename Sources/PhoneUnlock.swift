@@ -6,19 +6,35 @@ import SwiftUI
 /// Android hides its PIN screen from every capture, so the mirror goes black there.
 /// The PIN is typed on the Mac instead, and the app opens that screen and enters it.
 enum PhoneUnlock {
+  /// The PIN screen is the only one that captures as pure black, a tiny PNG.
+  private static let black = "[ $(screencap -p | wc -c) -lt 100000 ]"
+
+  /// Whether the phone is locked and, only then, whether its PIN screen is open.
+  static func state(_ transport: String) -> (locked: Bool, pinScreen: Bool) {
+    let script = """
+      dumpsys window policy | grep -A1 KeyguardServiceDelegate | grep -q showing=true || exit
+      echo locked; \(black) && echo pin
+      """
+    let out = ADB.shell(transport, script)
+    return (out.contains("locked"), out.hasSuffix("pin"))
+  }
+
   /// Wakes the phone and opens its PIN screen, unless it is open already.
-  /// That screen is the only one that captures as pure black, a tiny PNG.
+  /// A fingerprint prompt sometimes takes the first swipe, so it tries again,
+  /// after giving a slow PIN screen time to open.
   static func openPINScreen(_ transport: String) -> Bool {
     let script = """
-      black() { [ $(screencap -p | wc -c) -lt 100000 ]; }
+      black() { \(black); }
       black && { echo ready; exit; }
       input keyevent KEYCODE_WAKEUP; sleep 0.4
       set -- $(wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' ')
-      input tap $(($1/2)) $(($2/6)); sleep 0.5
-      input touchscreen swipe $(($1/2)) $(($2*9/10)) $(($1/2)) $(($2*3/10)) 400; sleep 0.9
-      black && echo ready
+      for try in 1 2; do
+        input tap $(($1/2)) $(($2/6)); sleep 0.5
+        input touchscreen swipe $(($1/2)) $(($2*9/10)) $(($1/2)) $(($2*3/10)) 400
+        for wait in 1 2 3 4; do sleep 0.4; black && { echo ready; exit; }; done
+      done
       """
-    return ADB.shell(transport, script, timeout: 10).hasSuffix("ready")
+    return ADB.shell(transport, script, timeout: 15).hasSuffix("ready")
   }
 }
 
@@ -93,58 +109,54 @@ final class UnlockModel: ObservableObject {
   @Published var working = false
   @Published var problem: String?
   @Published var saved = false
-  @Published var focus = 0
   @Published var canRemember = PhonePIN.canUseTouchID
-  var onUnlock: (String, Bool) -> Void = { _, _ in }
   var onTouchID: () -> Void = {}
 }
 
+/// Sits over the black PIN screen. Keys go to the mirror, which hands the PIN here.
 struct UnlockCard: View {
   @ObservedObject var model: UnlockModel
-  @FocusState private var focused: Bool
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Label("Unlock the phone", systemImage: "lock.fill")
-        .font(.system(size: 13, weight: .semibold))
-      HStack(spacing: 8) {
-        SecureField("PIN", text: $model.pin)
-          .textFieldStyle(.roundedBorder)
-          .frame(width: 160)
-          .focused($focused)
-          .onSubmit(submit)
-          .disabled(model.working)
-        if model.saved {
-          Button {
-            model.onTouchID()
-          } label: {
-            Image(systemName: "touchid").font(.system(size: 15))
+    VStack(spacing: 12) {
+      Image(systemName: "lock.fill").font(.system(size: 20))
+      Text("Unlock the phone").font(.system(size: 13, weight: .semibold))
+      Group {
+        if model.pin.isEmpty {
+          Text("Type the PIN, then press Return")
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+        } else {
+          HStack(spacing: 8) {
+            ForEach(Array(model.pin.indices), id: \.self) { _ in
+              Circle().frame(width: 9, height: 9)
+            }
           }
-          .help(String(localized: "Unlock with Touch ID"))
-          .disabled(model.working)
         }
-        Button("Unlock", action: submit)
-          .disabled(model.pin.isEmpty || model.working)
-        if model.working { ProgressView().controlSize(.small) }
       }
-      if !model.saved, model.canRemember {
+      .frame(height: 16)
+      if model.working {
+        ProgressView().controlSize(.small)
+      } else if model.saved {
+        Button {
+          model.onTouchID()
+        } label: {
+          Label("Unlock with Touch ID", systemImage: "touchid")
+        }
+        .focusable(false)
+      } else if model.canRemember {
         Toggle("Remember with Touch ID", isOn: $model.remember)
           .toggleStyle(.checkbox)
           .font(.system(size: 11))
+          .focusable(false)
       }
       if let problem = model.problem {
         Text(problem).font(.system(size: 11)).foregroundStyle(.red)
       }
     }
-    .padding(14)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .padding(18)
+    .frame(width: 240)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     .environment(\.colorScheme, .dark)
-    .onAppear { focused = true }
-    .onChange(of: model.focus) { focused = true }
-  }
-
-  private func submit() {
-    guard !model.pin.isEmpty, !model.working else { return }
-    model.onUnlock(model.pin, model.remember)
   }
 }

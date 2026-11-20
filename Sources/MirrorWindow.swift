@@ -230,6 +230,11 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   private var unlocking = false
   private var lockTimer: Timer?
   private var lockCheck: UUID?
+  /// What the last check found: the phone is locked, and its PIN screen is open.
+  private var phoneLocked = false
+  private var checkingLock = false
+  /// Touch ID asks once each time the phone locks, not again after it is cancelled.
+  private var touchIDAsked = false
   private let mirrorView = MirrorView()
   private let overlay = NSHostingView(rootView: MirrorOverlay(text: "", busy: true))
   private let notice = NSHostingView(rootView: InputBlockedNotice(maker: "", close: {}))
@@ -305,7 +310,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       notice.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
       notice.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16),
       unlockCard.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-      unlockCard.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -24),
+      unlockCard.centerYAnchor.constraint(equalTo: container.centerYAnchor),
     ])
     window.contentView = container
     window.addTitlebarAccessoryViewController(buttons)
@@ -319,9 +324,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     mirrorView.keyMapView.onChange = { [weak self] map in self?.updateKeyMapBar(map) }
     mirrorView.keyMapView.onDone = { [weak self] in self?.finishEditingKeys() }
     if let app { useKeys(of: app.package) }
-    unlockModel.onUnlock = { [weak self] pin, remember in
-      self?.unlock(with: pin, remember: remember, saved: false)
-    }
+    mirrorView.onLockedKey = { [weak self] event in self?.lockedKey(event) ?? false }
     unlockModel.onTouchID = { [weak self] in self?.unlockWithTouchID() }
     updateTitle()
     applyShape()
@@ -439,7 +442,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     updateTitle()
   }
 
-  /// While the phone's own screen is in this window, a locked phone gets a PIN box.
+  /// While the phone's own screen is in this window, a locked phone can be opened from here.
   private func watchLock() {
     lockTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
       Task { @MainActor in self?.checkLock() }
@@ -447,17 +450,78 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   }
 
   private func checkLock() {
-    guard !ownsDisplay, session != nil, !unlockModel.working else {
-      if ownsDisplay { showUnlockCard(false) }
+    guard !ownsDisplay, session != nil, !unlockModel.working, !checkingLock else {
+      if ownsDisplay {
+        phoneLocked = false
+        showUnlockCard(false)
+      }
       return
     }
-    isLocked { [weak self] locked in
-      guard let self, !self.ownsDisplay, !self.unlockModel.working else { return }
-      self.showUnlockCard(locked)
-      if self.unlocking, !locked {
-        self.stopWaitingForUnlock()
-        self.startSession()
+    checkingLock = true
+    let transport = phone.transport
+    DispatchQueue.global().async { [weak self] in
+      let state = PhoneUnlock.state(transport)
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.checkingLock = false
+        guard !self.ownsDisplay, !self.unlockModel.working else { return }
+        self.lockChanged(locked: state.locked, pinScreen: state.pinScreen)
       }
+    }
+  }
+
+  private func lockChanged(locked: Bool, pinScreen: Bool) {
+    phoneLocked = locked
+    guard locked else {
+      touchIDAsked = false
+      showUnlockCard(false)
+      if unlocking {
+        stopWaitingForUnlock()
+        startSession()
+      }
+      return
+    }
+    if pinScreen {
+      showUnlockCard(true)
+    } else if unlockModel.pin.isEmpty, unlockModel.problem == nil {
+      showUnlockCard(false)  // the PIN screen went away untouched
+    }
+    if !touchIDAsked, window?.isKeyWindow == true, PhonePIN.isSaved(phone.id) {
+      touchIDAsked = true
+      unlockWithTouchID()
+    }
+  }
+
+  /// A locked phone takes its PIN straight from the keyboard: type it, then press Return.
+  private func lockedKey(_ event: NSEvent) -> Bool {
+    guard phoneLocked, !ownsDisplay, !unlockModel.working,
+      event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+    else { return false }
+    let model = unlockModel
+    let shown = !unlockCard.isHidden
+    switch event.keyCode {
+    case 36, 76:  // Return, Enter
+      guard shown else { return false }
+      if !model.pin.isEmpty { unlock(with: model.pin, remember: model.remember, saved: false) }
+      return true
+    case 51:  // Delete
+      guard shown else { return false }
+      if !model.pin.isEmpty { model.pin.removeLast() }
+      return true
+    case 53:  // Esc closes the PIN screen too
+      guard shown else { return false }
+      showUnlockCard(false)
+      session?.input.tap(4)  // Back
+      return true
+    default:
+      guard let typed = event.characters, typed.count == 1, let character = typed.first,
+        character.isASCII, !character.isWhitespace, !character.isNewline,
+        character.asciiValue.map({ $0 >= 32 && $0 < 127 }) == true, model.pin.count < 16
+      else { return false }
+      model.problem = nil
+      model.pin.append(character)
+      showUnlockCard(true)
+      return true
     }
   }
 
@@ -466,11 +530,10 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     unlockCard.isHidden = !show
     if show {
       unlockModel.saved = PhonePIN.isSaved(phone.id)
-      unlockModel.focus += 1
+      window?.makeFirstResponder(mirrorView)
     } else {
       unlockModel.pin = ""
       unlockModel.problem = nil
-      window?.makeFirstResponder(mirrorView)
     }
   }
 
@@ -494,6 +557,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     let model = unlockModel
     model.working = true
     model.problem = nil
+    model.pin = String(repeating: "•", count: pin.count)
+    showUnlockCard(true)
     let transport = phone.transport
     let id = phone.id
     DispatchQueue.global().async { [weak self] in
@@ -502,6 +567,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
         guard let self else { return }
         guard ready, let input = self.session?.input else {
           model.working = false
+          model.pin = ""
           model.problem = String(localized: "Couldn't open the phone's PIN screen.")
           return
         }
@@ -515,13 +581,14 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
             if self.phoneScreenOff, self.app == nil {
               self.session?.input.setScreenPower(on: false)
             }
+            self.phoneLocked = false
+            self.touchIDAsked = false
             self.showUnlockCard(false)
             self.checkLock()
           } else {
             if saved { PhonePIN.delete(id) }
             model.saved = PhonePIN.isSaved(id)
             model.problem = String(localized: "Wrong PIN")
-            model.focus += 1
           }
         }
       }
@@ -1159,6 +1226,8 @@ final class MirrorView: NSView, NSTextInputClient {
   var onDropFiles: (([URL]) -> Void)?
   var onDragging: ((Bool) -> Void)?
   var onPasteImage: ((NSImage) -> Void)?
+  /// Keys for the app itself while the phone is locked, such as its PIN.
+  var onLockedKey: ((NSEvent) -> Bool)?
 
   override init(frame: NSRect) {
     super.init(frame: frame)
@@ -1427,6 +1496,7 @@ final class MirrorView: NSView, NSTextInputClient {
   }
 
   override func keyDown(with event: NSEvent) {
+    if onLockedKey?(event) == true { return }
     guard let control else { return }
     if keyMapper?.keyDown(event) == true { return }
     let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)

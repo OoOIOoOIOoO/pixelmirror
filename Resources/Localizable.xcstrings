@@ -6972,100 +6972,6 @@
         }
       }
     },
-    "PIN" : {
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "رمز PIN"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Code PIN"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pincode"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN-код"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mã PIN"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN 码"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PIN 碼"
-          }
-        }
-      }
-    },
     "PixelMirror Camera isn't ready yet. Try again." : {
       "localizations" : {
         "ar" : {
@@ -10550,96 +10456,96 @@
         }
       }
     },
-    "Unlock" : {
+    "Type the PIN, then press Return" : {
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "فتح القفل"
+            "value" : "اكتب رمز PIN ثم اضغط Return"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Entsperren"
+            "value" : "PIN eingeben, dann Return drücken"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desbloquear"
+            "value" : "Escribe el PIN y pulsa Retorno"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Déverrouiller"
+            "value" : "Tapez le code PIN, puis appuyez sur Retour"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sblocca"
+            "value" : "Digita il PIN, poi premi Invio"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "解除"
+            "value" : "PIN を入力して Return を押す"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "잠금 해제"
+            "value" : "PIN을 입력하고 Return 키를 누르세요"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ontgrendel"
+            "value" : "Typ de pincode en druk op Return"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Odblokuj"
+            "value" : "Wpisz PIN i naciśnij Return"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desbloquear"
+            "value" : "Digite o PIN e pressione Return"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Разблокировать"
+            "value" : "Введите PIN-код и нажмите Return"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kilidi Aç"
+            "value" : "PIN'i yazıp Return'e basın"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mở khóa"
+            "value" : "Nhập mã PIN rồi nhấn Return"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "解锁"
+            "value" : "输入 PIN 码后按回车"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "解鎖"
+            "value" : "輸入 PIN 碼後按 Return"
           }
         }
       }
