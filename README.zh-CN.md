@@ -6,17 +6,28 @@
 
 **你的安卓手机，实时出现在 Mac 上。**
 
+<a href="https://github.com/ReffWu/pixelmirror/releases/latest/download/PixelMirror.dmg">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/download-zh-Hans-dark.png">
+    <img src="docs/readme/download-zh-Hans-light.png" height="52" alt="下载 Mac 版">
+  </picture>
+</a>
+
+<sub>免费 · macOS 14 或更新版本 · Apple 芯片 · 经 Apple 签名与公证</sub>
+
 [English](README.md) · 简体中文 · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue?logo=apple&style=flat-square)](#系统要求)
-[![Apple silicon](https://img.shields.io/badge/Apple%20silicon-arm64-black?style=flat-square)](#系统要求)
-[![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg?style=flat-square)](LICENSE)
-
 </div>
+
+<p align="center">
+  <img src="docs/readme/hero-zh-Hans.png" alt="PixelMirror">
+</p>
 
 ---
 
 手机扣在桌上，来了条消息。打开 Pixel 镜像，手机画面已经在窗口里：用触控板点、用键盘打字（中文输入法也行）、这边复制那边粘贴、声音从 Mac 里出来。无线调试只要开一次，之后每次都会自己找到手机，不用数据线，不用终端，手机上也不用装任何东西。
+
+想要更大的空间？把窗口切到**电脑模式**，手机会在 Mac 上开出一个自己的桌面：App 在能拖动、能缩放的窗口里，有鼠标指针，也能右键。
 
 ## 下载
 

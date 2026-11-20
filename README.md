@@ -6,17 +6,28 @@
 
 **Your Android phone, live on your Mac.**
 
+<a href="https://github.com/ReffWu/pixelmirror/releases/latest/download/PixelMirror.dmg">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/download-en-dark.png">
+    <img src="docs/readme/download-en-light.png" height="52" alt="Download for Mac">
+  </picture>
+</a>
+
+<sub>Free · macOS 14 or later · Apple silicon · Signed and notarized by Apple</sub>
+
 English · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue?logo=apple&style=flat-square)](#requirements)
-[![Apple silicon](https://img.shields.io/badge/Apple%20silicon-arm64-black?style=flat-square)](#requirements)
-[![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg?style=flat-square)](LICENSE)
-
 </div>
+
+<p align="center">
+  <img src="docs/readme/hero-en.png" alt="PixelMirror">
+</p>
 
 ---
 
 Your phone is face down on the desk and something just arrived. Open PixelMirror and the phone is already there in a window: tap with the trackpad, type with your keyboard in any language, copy on one side and paste on the other, hear its sound through your Mac. Turn on Wireless debugging once and it finds your phone by itself every time after, no cable, no Terminal, nothing to install on the phone.
+
+Need more room? Switch the window to **Computer Mode** and the phone opens a desktop of its own on your Mac, with apps in windows you can move and resize, a mouse pointer and right-click.
 
 ## Download
 

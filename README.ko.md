@@ -6,17 +6,28 @@
 
 **Android 폰을 Mac에서 그대로.**
 
+<a href="https://github.com/ReffWu/pixelmirror/releases/latest/download/PixelMirror.dmg">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/download-ko-dark.png">
+    <img src="docs/readme/download-ko-light.png" height="52" alt="Mac용 다운로드">
+  </picture>
+</a>
+
+<sub>무료 · macOS 14 이상 · Apple 실리콘 · Apple 서명 및 공증 완료</sub>
+
 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · 한국어
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue?logo=apple&style=flat-square)](#요구-사항)
-[![Apple silicon](https://img.shields.io/badge/Apple%20silicon-arm64-black?style=flat-square)](#요구-사항)
-[![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg?style=flat-square)](LICENSE)
-
 </div>
+
+<p align="center">
+  <img src="docs/readme/hero-ko.png" alt="PixelMirror">
+</p>
 
 ---
 
 책상 위에 엎어 둔 폰에 알림이 옵니다. PixelMirror를 열면 폰 화면이 이미 창 안에 있습니다. 트랙패드로 탭하고, 키보드로 한글도 입력하고, 한쪽에서 복사해 다른 쪽에 붙여 넣고, 소리는 Mac에서 들립니다. 무선 디버깅을 한 번만 켜 두면 그다음부터는 알아서 폰을 찾습니다. 케이블도, 터미널도, 폰에 설치할 것도 없습니다.
+
+더 넓게 쓰고 싶다면 창을 **컴퓨터 모드**로 바꾸세요. 폰이 Mac 위에 자신만의 데스크톱을 열고, 앱은 옮기고 크기를 바꿀 수 있는 창에서 열리며, 마우스 포인터와 오른쪽 클릭도 됩니다.
 
 ## 다운로드
 

@@ -6,17 +6,28 @@
 
 **Android スマホを、Mac でそのまま。**
 
+<a href="https://github.com/ReffWu/pixelmirror/releases/latest/download/PixelMirror.dmg">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/download-ja-dark.png">
+    <img src="docs/readme/download-ja-light.png" height="52" alt="Mac 版をダウンロード">
+  </picture>
+</a>
+
+<sub>無料 · macOS 14 以降 · Apple シリコン · Apple による署名と公証済み</sub>
+
 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · 日本語 · [한국어](README.ko.md)
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue?logo=apple&style=flat-square)](#動作環境)
-[![Apple silicon](https://img.shields.io/badge/Apple%20silicon-arm64-black?style=flat-square)](#動作環境)
-[![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg?style=flat-square)](LICENSE)
-
 </div>
+
+<p align="center">
+  <img src="docs/readme/hero-ja.png" alt="PixelMirror">
+</p>
 
 ---
 
 机の上に伏せたスマホに通知が届く。PixelMirror を開けば、もう画面がウインドウに映っています。トラックパッドでタップし、キーボードで日本語も入力し、片方でコピーしてもう片方でペースト、音は Mac から。ワイヤレス デバッグを一度オンにすれば、次からは自分でスマホを見つけます。ケーブルもターミナルも、スマホへのインストールも要りません。
+
+もっと広く使いたいときは、ウインドウを**コンピュータモード**に切り替えます。スマホが Mac 上に自分のデスクトップを開き、アプリは動かしたりサイズを変えたりできるウインドウに。マウスポインタも右クリックも使えます。
 
 ## ダウンロード
 

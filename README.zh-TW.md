@@ -6,17 +6,28 @@
 
 **你的 Android 手機，即時出現在 Mac 上。**
 
+<a href="https://github.com/ReffWu/pixelmirror/releases/latest/download/PixelMirror.dmg">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/download-zh-Hant-dark.png">
+    <img src="docs/readme/download-zh-Hant-light.png" height="52" alt="下載 Mac 版">
+  </picture>
+</a>
+
+<sub>免費 · macOS 14 或更新版本 · Apple 晶片 · 經 Apple 簽署與公證</sub>
+
 [English](README.md) · [简体中文](README.zh-CN.md) · 繁體中文 · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue?logo=apple&style=flat-square)](#系統需求)
-[![Apple silicon](https://img.shields.io/badge/Apple%20silicon-arm64-black?style=flat-square)](#系統需求)
-[![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg?style=flat-square)](LICENSE)
-
 </div>
+
+<p align="center">
+  <img src="docs/readme/hero-zh-Hant.png" alt="PixelMirror">
+</p>
 
 ---
 
 手機蓋在桌上，來了則訊息。打開 Pixel 鏡像，手機畫面已經在視窗裡：用觸控板點、用鍵盤打字（中文輸入法也行）、這邊複製那邊貼上、聲音從 Mac 裡出來。無線偵錯只要開一次，之後每次都會自己找到手機，不用傳輸線，不用終端機，手機上也不用裝任何東西。
+
+想要更大的空間？把視窗切到**電腦模式**，手機會在 Mac 上開出一個自己的桌面：App 在能拖動、能縮放的視窗裡，有滑鼠指標，也能按右鍵。
 
 ## 下載
 
