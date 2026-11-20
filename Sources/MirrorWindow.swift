@@ -326,6 +326,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     if let app { useKeys(of: app.package) }
     mirrorView.onLockedKey = { [weak self] event in self?.lockedKey(event) ?? false }
     unlockModel.onTouchID = { [weak self] in self?.unlockWithTouchID() }
+    unlockModel.onSubmit = { [weak self] in self?.submitPIN() }
     updateTitle()
     applyShape()
     startSession()
@@ -502,7 +503,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     switch event.keyCode {
     case 36, 76:  // Return, Enter
       guard shown else { return false }
-      if !model.pin.isEmpty { unlock(with: model.pin, remember: model.remember, saved: false) }
+      submitPIN()
       return true
     case 51:  // Delete
       guard shown else { return false }
@@ -525,11 +526,17 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     }
   }
 
+  private func submitPIN() {
+    guard !unlockModel.pin.isEmpty, !unlockModel.working else { return }
+    unlock(with: unlockModel.pin, saved: false)
+  }
+
   private func showUnlockCard(_ show: Bool) {
     guard unlockCard.isHidden == show else { return }
     unlockCard.isHidden = !show
     if show {
       unlockModel.saved = PhonePIN.isSaved(phone.id)
+      unlockModel.name = phone.name
       window?.makeFirstResponder(mirrorView)
     } else {
       unlockModel.pin = ""
@@ -547,13 +554,13 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
         guard let self else { return }
         self.unlockModel.working = false
         self.unlockModel.saved = PhonePIN.isSaved(id)
-        if let pin { self.unlock(with: pin, remember: false, saved: true) }
+        if let pin { self.unlock(with: pin, saved: true) }
       }
     }
   }
 
   /// Opens the phone's PIN screen, types the PIN there and checks that the phone opened.
-  private func unlock(with pin: String, remember: Bool, saved: Bool) {
+  private func unlock(with pin: String, saved: Bool) {
     let model = unlockModel
     model.working = true
     model.problem = nil
@@ -577,7 +584,6 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
           model.working = false
           model.pin = ""
           if opened {
-            if remember, !PhonePIN.save(pin, for: id) { model.canRemember = false }
             if self.phoneScreenOff, self.app == nil {
               self.session?.input.setScreenPower(on: false)
             }
@@ -585,13 +591,38 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
             self.touchIDAsked = false
             self.showUnlockCard(false)
             self.checkLock()
+            if !saved { self.offerTouchID(for: pin) }
           } else {
             if saved { PhonePIN.delete(id) }
             model.saved = PhonePIN.isSaved(id)
-            model.problem = String(localized: "Wrong PIN")
+            model.wrong += 1
+            NSAccessibility.post(
+              element: self.unlockCard, notification: .announcementRequested,
+              userInfo: [.announcement: String(localized: "Wrong PIN")])
           }
         }
       }
+    }
+  }
+
+  /// Phones already offered Touch ID since the app opened.
+  private static var touchIDOffered: Set<String> = []
+
+  /// After a PIN typed by hand opens the phone, offers to keep it for Touch ID.
+  private func offerTouchID(for pin: String) {
+    let id = phone.id
+    guard let window, PhonePIN.canUseTouchID, !PhonePIN.isSaved(id),
+      Self.touchIDOffered.insert(id).inserted
+    else { return }
+    let alert = NSAlert()
+    alert.messageText = String(localized: "Use Touch ID to unlock “\(phone.name)”?")
+    alert.informativeText = String(
+      localized: "Your PIN stays in this Mac’s keychain and only opens with your fingerprint.")
+    alert.addButton(withTitle: String(localized: "Use Touch ID"))
+    alert.addButton(withTitle: String(localized: "Not Now"))
+    alert.beginSheetModal(for: window) { response in
+      guard response == .alertFirstButtonReturn else { return }
+      PhonePIN.save(pin, for: id)
     }
   }
 
