@@ -69,6 +69,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   var onClose: (() -> Void)?
 
   @AppStorage("phoneScreenOff") private var phoneScreenOff = true
+  private lazy var buttons = PhoneButtons(controller: self)
 
   init(phone: Phone) {
     self.phone = phone
@@ -101,8 +102,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       overlay.centerYAnchor.constraint(equalTo: container.centerYAnchor),
     ])
     window.contentView = container
-    window.toolbar = makeToolbar()
-    window.toolbarStyle = .unifiedCompact
+    window.addTitlebarAccessoryViewController(buttons)
     updateTitle()
     if !window.setFrameUsingName("Mirror-\(phone.id)") { window.center() }
     startSession()
@@ -234,90 +234,144 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   func togglePhoneScreen() {
     phoneScreenOff.toggle()
     session?.input.setScreenPower(on: !phoneScreenOff)
-    window?.toolbar?.items.first { $0.itemIdentifier == .screen }.map(styleScreenItem)
+    buttons.update(screenOn: !phoneScreenOff)
   }
 
-  private func styleScreenItem(_ item: NSToolbarItem) {
-    item.image = NSImage(
-      systemSymbolName: phoneScreenOff ? "iphone.slash" : "iphone", accessibilityDescription: nil)
-    item.label = String(localized: "Phone Screen")
-    item.toolTip =
-      phoneScreenOff
-      ? String(localized: "Turn the phone's screen on")
-      : String(localized: "Turn the phone's screen off")
-  }
+  var isPhoneScreenOn: Bool { !phoneScreenOff }
 }
 
-// MARK: - Toolbar
+// MARK: - Title bar buttons
 
-extension NSToolbarItem.Identifier {
-  static let back = Self("back")
-  static let home = Self("home")
-  static let recents = Self("recents")
-  static let rotate = Self("rotate")
-  static let screen = Self("screen")
-}
+/// Back, Home, Recent Apps and the phone screen switch, sitting at the right of the title bar.
+@MainActor
+private final class PhoneButtons: NSTitlebarAccessoryViewController {
+  private weak var controller: MirrorWindowController?
+  private let screen = TitlebarButton()
 
-extension MirrorWindowController: NSToolbarDelegate {
-  fileprivate func makeToolbar() -> NSToolbar {
-    let toolbar = NSToolbar(identifier: "mirror")
-    toolbar.delegate = self
-    toolbar.displayMode = .iconOnly
-    toolbar.allowsUserCustomization = false
-    return toolbar
+  init(controller: MirrorWindowController) {
+    self.controller = controller
+    super.init(nibName: nil, bundle: nil)
+    layoutAttribute = .trailing
   }
 
-  nonisolated func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
-  {
-    [.flexibleSpace, .back, .home, .recents, .rotate, .screen]
-  }
+  required init?(coder: NSCoder) { fatalError() }
 
-  nonisolated func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier]
-  {
-    toolbarDefaultItemIdentifiers(toolbar)
-  }
-
-  nonisolated func toolbar(
-    _ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
-    willBeInsertedIntoToolbar flag: Bool
-  ) -> NSToolbarItem? {
-    MainActor.assumeIsolated {
-      let item = NSToolbarItem(itemIdentifier: id)
-      item.isBordered = true
-      item.target = self
-      switch id {
-      case .back:
-        item.image = NSImage(systemSymbolName: "chevron.backward", accessibilityDescription: nil)
-        item.label = String(localized: "Back")
-        item.action = #selector(backAction)
-      case .home:
-        item.image = NSImage(systemSymbolName: "circle", accessibilityDescription: nil)
-        item.label = String(localized: "Home")
-        item.action = #selector(homeAction)
-      case .recents:
-        item.image = NSImage(systemSymbolName: "square.on.square", accessibilityDescription: nil)
-        item.label = String(localized: "Recent Apps")
-        item.action = #selector(recentsAction)
-      case .rotate:
-        item.image = NSImage(systemSymbolName: "rotate.right", accessibilityDescription: nil)
-        item.label = String(localized: "Rotate")
-        item.action = #selector(rotateAction)
-      case .screen:
-        styleScreenItem(item)
-        item.action = #selector(screenAction)
-      default:
-        return nil
-      }
-      item.toolTip = item.toolTip ?? item.label
-      return item
+  override func loadView() {
+    let back = TitlebarButton(
+      symbol: "chevron.backward", tip: String(localized: "Back"), action: #selector(backAction))
+    let home = TitlebarButton(
+      symbol: "app.grid.3x3", fallback: "circle.grid.3x3", tip: String(localized: "Home"),
+      action: #selector(homeAction))
+    let recents = TitlebarButton(
+      symbol: "iphone.app.switcher", tip: String(localized: "Recent Apps"),
+      action: #selector(recentsAction))
+    screen.action = #selector(screenAction)
+    let stack = NSStackView(views: [back, home, recents, screen])
+    stack.spacing = 3
+    stack.distribution = .fillEqually
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    for button in stack.arrangedSubviews {
+      (button as? NSButton)?.target = self
+      button.widthAnchor.constraint(equalToConstant: 26).isActive = true
+      button.heightAnchor.constraint(equalToConstant: 24).isActive = true
     }
+    let container = NSView()
+    container.addSubview(stack)
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+      stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+      container.heightAnchor.constraint(equalToConstant: 28),
+      container.widthAnchor.constraint(equalToConstant: 4 * 26 + 3 * 3 + 8),
+    ])
+    container.frame.size = NSSize(width: 4 * 26 + 3 * 3 + 8, height: 28)
+    view = container
+    update(screenOn: controller?.isPhoneScreenOn ?? false)
   }
 
-  @objc private func backAction() { back() }
-  @objc private func homeAction() { home() }
-  @objc private func recentsAction() { recents() }
-  @objc private func rotateAction() { rotate() }
-  @objc private func screenAction() { togglePhoneScreen() }
+  /// A filled orange sun while the phone's screen is lit, a quiet outline while it is dark.
+  func update(screenOn: Bool) {
+    screen.image = TitlebarButton.symbol(
+      screenOn ? "sun.max.fill" : "sun.max", size: screenOn ? 14 : 13,
+      weight: screenOn ? .bold : .regular)
+    screen.contentTintColor = screenOn ? .systemOrange : .secondaryLabelColor
+    screen.toolTip =
+      screenOn
+      ? String(localized: "Turn the phone's screen off")
+      : String(localized: "Turn the phone's screen on")
+  }
+
+  @objc private func backAction() { controller?.back() }
+  @objc private func homeAction() { controller?.home() }
+  @objc private func recentsAction() { controller?.recents() }
+  @objc private func screenAction() { controller?.togglePhoneScreen() }
+}
+
+private final class TitlebarButton: NSButton {
+  private var tracking: NSTrackingArea?
+
+  convenience init(symbol: String, fallback: String? = nil, tip: String, action: Selector) {
+    self.init()
+    image =
+      Self.symbol(symbol, size: 13, weight: .medium)
+      ?? fallback.flatMap { Self.symbol($0, size: 13, weight: .medium) }
+    toolTip = tip
+    self.action = action
+  }
+
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    isBordered = false
+    imagePosition = .imageOnly
+    contentTintColor = .labelColor
+    wantsLayer = true
+    layer?.cornerRadius = 5
+    translatesAutoresizingMaskIntoConstraints = false
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  // A press in the title bar must click the button, not drag the window.
+  override var mouseDownCanMoveWindow: Bool { false }
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    if let tracking { removeTrackingArea(tracking) }
+    let area = NSTrackingArea(
+      rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self)
+    addTrackingArea(area)
+    tracking = area
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    layer?.backgroundColor = NSColor.quaternaryLabelColor.cgColor
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    layer?.backgroundColor = nil
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    layer?.backgroundColor = NSColor.tertiaryLabelColor.cgColor
+    super.mouseDown(with: event)
+    let inside = bounds.contains(
+      convert(window?.mouseLocationOutsideOfEventStream ?? .zero, from: nil))
+    layer?.backgroundColor = inside ? NSColor.quaternaryLabelColor.cgColor : nil
+  }
+
+  /// SF Symbols, including the system's own private ones such as app.grid.3x3.
+  static func symbol(_ name: String, size: CGFloat, weight: NSFont.Weight) -> NSImage? {
+    let config = NSImage.SymbolConfiguration(pointSize: size, weight: weight)
+    if let image = NSImage(systemSymbolName: name, accessibilityDescription: nil) {
+      return image.withSymbolConfiguration(config)
+    }
+    let selector = NSSelectorFromString(
+      "imageWithPrivateSystemSymbolName:accessibilityDescription:")
+    guard NSImage.responds(to: selector) else { return nil }
+    typealias Lookup = @convention(c) (AnyObject, Selector, NSString, NSString?) -> NSImage?
+    let lookup = unsafeBitCast(NSImage.method(for: selector), to: Lookup.self)
+    return lookup(NSImage.self, selector, name as NSString, nil)?.withSymbolConfiguration(config)
+  }
 }
 
 private struct MirrorOverlay: View {

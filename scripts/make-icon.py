@@ -24,7 +24,7 @@ FRAMES = {
     "dark": ((26, 26, 28), (128, 128, 134, 255), 60),
 }
 POINTS = [16, 32, 128, 256, 512]
-BACKGROUND = ((46, 64, 120), (12, 16, 38))
+BACKGROUND = ((86, 214, 182), (20, 150, 152))
 
 
 def blank():
@@ -78,41 +78,36 @@ def vertical_gradient(top, bottom, start, end):
 
 
 def face():
-    """A phone standing on glass: the screen glows, and the Mac side is its reflection."""
-    canvas = vertical_gradient((46, 64, 120), (12, 16, 38), INNER[1], INNER[3]).convert("RGBA")
+    """Two phones, one behind the other: the real one and its frosted-glass twin on the Mac."""
+    canvas = vertical_gradient(BACKGROUND[0], BACKGROUND[1], INNER[1], INNER[3]).convert("RGBA")
+    back = (625, 420, 1217, 1420)
+    front = (830, 628, 1422, 1628)
+    radius = 92
 
-    phone = blank()
-    body = (734, 330, 1314, 1500)
-    draw = ImageDraw.Draw(phone)
-    draw.rounded_rectangle(body, radius=118, fill=(20, 21, 26, 255))
-    draw.rounded_rectangle(body, radius=118, outline=(92, 98, 116, 255), width=10)
-    screen_box = (body[0] + 34, body[1] + 34, body[2] - 34, body[3] - 34)
-    screen = vertical_gradient((132, 214, 255), (118, 92, 255), screen_box[1], screen_box[3]).convert("RGBA")
-    phone = Image.alpha_composite(phone, fill(screen, rounded_mask(screen_box, 86)))
-    draw = ImageDraw.Draw(phone)
-    cx = (body[0] + body[2]) // 2
-    draw.ellipse((cx - 22, body[1] + 70, cx + 22, body[1] + 114), fill=(20, 21, 26, 255))
-    # A soft sheen across the glass.
-    sheen = blank()
-    ImageDraw.Draw(sheen).polygon(
-        [(screen_box[0], screen_box[1] + 260), (screen_box[2], screen_box[1] + 40),
-         (screen_box[2], screen_box[1] + 300), (screen_box[0], screen_box[1] + 520)],
-        fill=(255, 255, 255, 34))
-    phone = Image.alpha_composite(phone, fill(sheen, rounded_mask(screen_box, 86)))
+    # Soft shadows lift both phones off the background.
+    for box, alpha, blur in ((back, 70, 36), (front, 90, 44)):
+        shadow = fill((0, 40, 48, alpha), rounded_mask(box, radius)).filter(ImageFilter.GaussianBlur(blur))
+        canvas = Image.alpha_composite(canvas, shadow.transform((SIZE, SIZE), Image.AFFINE, (1, 0, 0, 0, 1, -22)))
 
-    # The reflection: the phone flipped below its foot, fading into the floor.
-    floor = body[3] + 18
-    reflection = phone.crop((0, floor - 18 - 560, SIZE, floor - 18)).transpose(Image.FLIP_TOP_BOTTOM)
-    fade = Image.new("L", reflection.size, 0)
-    for y in range(reflection.size[1]):
-        value = int(92 * (1 - y / reflection.size[1]) ** 2)
-        ImageDraw.Draw(fade).line((0, y, reflection.size[0], y), fill=value)
-    faded = np.array(reflection.getchannel("A"), dtype=np.float32) * np.array(fade, dtype=np.float32) / 255
-    reflection.putalpha(Image.fromarray(faded.astype(np.uint8)))
-    mirrored = blank()
-    mirrored.paste(reflection, (0, floor))
-    canvas = Image.alpha_composite(canvas, mirrored)
-    return Image.alpha_composite(canvas, phone)
+    # The phone itself: solid, deep, no detail.
+    canvas = Image.alpha_composite(
+        canvas, fill(vertical_gradient((6, 112, 124), (2, 62, 92), back[1], back[3]), rounded_mask(back, radius)))
+
+    # Its mirror image: tinted glass that lets the phone behind show through.
+    glass = vertical_gradient((178, 255, 232), (58, 226, 214), front[1], front[3]).convert("RGBA")
+    glass.putalpha(165)
+    canvas = Image.alpha_composite(canvas, fill(glass, rounded_mask(front, radius)))
+    rim = blank()
+    ImageDraw.Draw(rim).rounded_rectangle(front, radius=radius, outline=(214, 255, 244, 210), width=6)
+    canvas = Image.alpha_composite(canvas, rim)
+
+    # What makes it Android: a punch-hole camera and a thin gesture bar.
+    marks = blank()
+    draw = ImageDraw.Draw(marks)
+    cx = (front[0] + front[2]) // 2
+    draw.ellipse((cx - 19, front[1] + 46, cx + 19, front[1] + 84), fill=(6, 70, 80, 230))
+    draw.rounded_rectangle((cx - 96, front[3] - 54, cx + 96, front[3] - 40), radius=7, fill=(226, 255, 248, 235))
+    return Image.alpha_composite(canvas, marks)
 
 
 def ring_point(distance, box, radius):

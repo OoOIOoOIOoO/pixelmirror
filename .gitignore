@@ -8,3 +8,4 @@ __pycache__/
 
 # Fetched and verified by scripts/vendor.sh from vendor.lock
 Vendor/
+*.apk
