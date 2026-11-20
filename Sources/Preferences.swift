@@ -6,6 +6,8 @@ struct PreferencesCard: View {
   @State private var language = AppLanguage.current
 
   @AppStorage(Telemetry.key) private var sharesUsageStatistics = true
+  @AppStorage(PhoneNotifications.key) private var showsPhoneNotifications = true
+  @ObservedObject private var notifications = PhoneNotifications.shared
 
   var body: some View {
     SettingsGroup {
@@ -35,6 +37,33 @@ struct PreferencesCard: View {
         .labelsHidden()
         .fixedSize()
         .controlSize(.small)
+      }
+      SettingsDivider()
+      SettingsRow(
+        "bell.badge.fill", tint: .red, title: String(localized: "Phone notifications"),
+        subtitle: showsPhoneNotifications && notifications.denied
+          ? String(localized: "Allow them in System Settings.") : nil
+      ) {
+        if showsPhoneNotifications, notifications.denied {
+          Button(String(localized: "Open Settings")) {
+            let id = Bundle.main.bundleIdentifier ?? ""
+            if let url = URL(
+              string:
+                "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)")
+            {
+              NSWorkspace.shared.open(url)
+            }
+          }
+          .controlSize(.small)
+        }
+        Toggle("Phone notifications", isOn: $showsPhoneNotifications)
+          .toggleStyle(.switch)
+          .labelsHidden()
+      }
+      .onReceive(
+        NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
+      ) {
+        _ in notifications.refreshAuthorization()
       }
       SettingsDivider()
       SettingsRow(

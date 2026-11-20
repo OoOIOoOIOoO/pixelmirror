@@ -21,6 +21,7 @@
 		AB33E67AB34D3DA2F2E498FF /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7C26D47B9D9E3508BCEB83ED /* Localizable.xcstrings */; };
 		BD5EAFACDE8AD1B0CB8C9501 /* Showcase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 627E1CE0CB9EC2DB4127C5AA /* Showcase.swift */; };
 		C024BCCB5A0B611813B7DCF5 /* SettingsChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1BB8279B868E52343BCD76 /* SettingsChrome.swift */; };
+		C5D48BAD396036B300DFBEB5 /* PhoneNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F6C2E2AF7D20D31D224C8DB /* PhoneNotifications.swift */; };
 		C8E53C02A810B96A3C5B55E3 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21CDAF79550A6433B558312C /* Preferences.swift */; };
 		D4825E39B333F7822E5177C6 /* DeviceHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DDF581497F344FD17345A7 /* DeviceHub.swift */; };
 		DAF86FAD9ACC7A0EE326636E /* PhoneApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD616DF78FDBA7EABD6F4DB3 /* PhoneApps.swift */; };
@@ -44,6 +45,7 @@
 		627E1CE0CB9EC2DB4127C5AA /* Showcase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Showcase.swift; sourceTree = "<group>"; };
 		6424503747E1F4C560994DE9 /* MirrorSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorSession.swift; sourceTree = "<group>"; };
 		65C997E9F17BB40B9FEC7DE0 /* Telemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Telemetry.swift; sourceTree = "<group>"; };
+		6F6C2E2AF7D20D31D224C8DB /* PhoneNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneNotifications.swift; sourceTree = "<group>"; };
 		7C26D47B9D9E3508BCEB83ED /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		A89DFF44450DFE23CC184C29 /* ADB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ADB.swift; sourceTree = "<group>"; };
 		AF00964A122CA3B95C78A473 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -110,6 +112,7 @@
 				0E91D975C7B15A16E35104B3 /* MirrorWindow.swift */,
 				FD616DF78FDBA7EABD6F4DB3 /* PhoneApps.swift */,
 				5C7B4C7822434C310145EBC2 /* PhoneFiles.swift */,
+				6F6C2E2AF7D20D31D224C8DB /* PhoneNotifications.swift */,
 				EBBF8A78350EB0D1689A0F31 /* PixelMirrorApp.swift */,
 				21CDAF79550A6433B558312C /* Preferences.swift */,
 				23073DDBC865893800EEB7E1 /* ScreenRecorder.swift */,
@@ -259,6 +262,7 @@
 				F0B1E842DD1B46BC940DBD69 /* MirrorWindow.swift in Sources */,
 				DAF86FAD9ACC7A0EE326636E /* PhoneApps.swift in Sources */,
 				37ED7C307CF8BA1C868B86E4 /* PhoneFiles.swift in Sources */,
+				C5D48BAD396036B300DFBEB5 /* PhoneNotifications.swift in Sources */,
 				7489F3A4BB619EA855DB26A4 /* PixelMirrorApp.swift in Sources */,
 				C8E53C02A810B96A3C5B55E3 /* Preferences.swift in Sources */,
 				9A20436DC9E261E21D3FC12C /* ScreenRecorder.swift in Sources */,

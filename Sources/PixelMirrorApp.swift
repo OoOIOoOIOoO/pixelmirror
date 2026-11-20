@@ -13,6 +13,7 @@ struct PixelMirrorApp: App {
     hub.onPhoneReady = { mirrors.phoneBecameReady($0) }
     hub.onPhonesChanged = { mirrors.phonesChanged($0) }
     hub.start()
+    PhoneNotifications.shared.start()
   }
 
   var body: some Scene {
