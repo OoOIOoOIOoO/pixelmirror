@@ -43,8 +43,8 @@ targets:
       properties:
         CFBundleName: PixelMirror
         CFBundleDisplayName: PixelMirror
-        CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0.1"
+        CFBundleVersion: "2"
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, ar, de, es, fr, it, ja, ko, nl, pl, pt-BR, ru, tr, vi, zh-Hans, zh-Hant]
         CFBundleIconName: AppIcon
@@ -93,8 +93,8 @@ targets:
         CFBundleName: PixelMirror Camera
         CFBundlePackageType: $(PRODUCT_BUNDLE_PACKAGE_TYPE)
         CFBundleDisplayName: PixelMirror Camera
-        CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0.1"
+        CFBundleVersion: "2"
         CFBundleDevelopmentRegion: en
         LSMinimumSystemVersion: "14.0"
         NSSystemExtensionUsageDescription: Shows your phone's camera to apps on this Mac.
