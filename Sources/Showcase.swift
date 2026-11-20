@@ -159,13 +159,34 @@ struct MoreAppsCard: View {
 
   private static let icon: CGFloat = 40
 
+  @State private var expanded = false
+
   var body: some View {
     Group {
       if !store.entries.isEmpty {
-        SettingsGroup(title: String(localized: "More from Reff Wu")) {
-          ForEach(Array(store.entries.enumerated()), id: \.element.id) { index, entry in
-            if index > 0 { SettingsDivider(inset: 65) }
-            row(entry)
+        VStack(alignment: .leading, spacing: 7) {
+          Button {
+            withAnimation(.smooth(duration: 0.25)) { expanded.toggle() }
+          } label: {
+            HStack(spacing: 4) {
+              Text("More from Reff Wu")
+              Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .bold))
+                .rotationEffect(.degrees(expanded ? 90 : 0))
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .padding(.leading, 2)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          if expanded {
+            SettingsGroup {
+              ForEach(Array(store.entries.enumerated()), id: \.element.id) { index, entry in
+                if index > 0 { SettingsDivider(inset: 65) }
+                row(entry)
+              }
+            }
           }
         }
       }
