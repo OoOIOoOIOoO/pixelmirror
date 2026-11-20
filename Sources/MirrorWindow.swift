@@ -160,6 +160,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       self.transferHUD.rootView = TransferHUD(sender: self.files, dropping: dropping)
     }
     mirrorView.onDropFiles = { [weak self] urls in self?.send(urls) }
+    mirrorView.onPasteImage = { [weak self] image in self?.send(image) }
     mirrorView.keyMapper = keyMapper
     mirrorView.keyMapView.onChange = { [weak self] map in self?.updateKeyMapBar(map) }
     mirrorView.keyMapView.onDone = { [weak self] in self?.finishEditingKeys() }
@@ -443,6 +444,22 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   private func send(_ urls: [URL]) {
     guard let input = session?.input else { return }
     files.send(urls, transport: phone.transport) { input.scanFile($0) }
+  }
+
+  /// A pasted image is saved as a PNG and sent like a dropped file.
+  private func send(_ image: NSImage) {
+    guard let tiff = image.tiffRepresentation,
+      let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
+    else { return }
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString, isDirectory: true)
+    let url = folder.appendingPathComponent(
+      Capture.fileName(String(localized: "Pasted Image"), ext: "png"))
+    do {
+      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+      try png.write(to: url)
+    } catch { return }
+    send([url])
   }
 
   // MARK: - Screenshots and recordings
@@ -762,6 +779,7 @@ final class MirrorView: NSView, NSTextInputClient {
   private var heldKeys: [UInt16: Int32] = [:]
   var onDropFiles: (([URL]) -> Void)?
   var onDragging: ((Bool) -> Void)?
+  var onPasteImage: ((NSImage) -> Void)?
 
   override init(frame: NSRect) {
     super.init(frame: frame)
@@ -1031,8 +1049,13 @@ final class MirrorView: NSView, NSTextInputClient {
 
   // Edit menu: the Mac clipboard and the phone's stay in step.
   @objc func paste(_ sender: Any?) {
-    guard let text = NSPasteboard.general.string(forType: .string) else { return }
-    control?.setClipboard(text, paste: true)
+    let pasteboard = NSPasteboard.general
+    if let text = pasteboard.string(forType: .string) {
+      control?.setClipboard(text, paste: true)
+    } else if let image = NSImage(pasteboard: pasteboard) {
+      // The phone's clipboard only takes text from here, so an image goes to its photos instead.
+      onPasteImage?(image)
+    }
   }
 
   @objc func copy(_ sender: Any?) { control?.copyFromPhone(cut: false) }
