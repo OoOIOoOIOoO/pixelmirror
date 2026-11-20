@@ -1,0 +1,23 @@
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install tools
+        run: brew install xcodegen swift-format
+      - name: Lint Swift
+        run: swift-format lint --strict Sources/*.swift
+      - name: Build
+        run: make build SIGN_IDENTITY=-

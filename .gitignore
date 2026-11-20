@@ -1,0 +1,10 @@
+build/
+dist/
+.DS_Store
+xcuserdata/
+*.xcuserstate
+.venv/
+__pycache__/
+
+# Fetched and verified by scripts/vendor.sh from vendor.lock
+Vendor/

@@ -1,0 +1,83 @@
+name: PixelMirror
+options:
+  bundleIdPrefix: com.reffwu
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: 37V2HFG7YT
+    CODE_SIGN_STYLE: Manual
+    ENABLE_APP_SANDBOX: "NO"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+  configs:
+    Debug:
+      CODE_SIGN_IDENTITY: "-"
+      ENABLE_HARDENED_RUNTIME: "NO"
+    Release:
+      CODE_SIGN_IDENTITY: Developer ID Application
+      ENABLE_HARDENED_RUNTIME: "YES"
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
+targets:
+  PixelMirror:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+      # adb and the scrcpy server ship inside the app, so installing it is the
+      # only thing anyone has to do. A folder reference keeps the executable bit.
+      - path: Vendor/Helpers
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: Sparkle
+    info:
+      path: Info.plist
+      properties:
+        CFBundleName: PixelMirror
+        CFBundleDisplayName: PixelMirror
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, ar, de, es, fr, it, ja, ko, nl, pl, pt-BR, ru, tr, vi, zh-Hans, zh-Hant]
+        CFBundleIconName: AppIcon
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: "14.0"
+        NSHighResolutionCapable: true
+        SUEnableAutomaticChecks: true
+        SUAutomaticallyUpdate: true
+        SUScheduledCheckInterval: 21600
+        SUFeedURL: https://github.com/ReffWu/pixelmirror/releases/latest/download/appcast.xml
+        SUPublicEDKey: wpcSIsJIvvZPj3jAoJuw8wl0+fVXS3K3ChODZ0W8EBI=
+        NSLocalNetworkUsageDescription: PixelMirror finds your phone on this network when Wireless debugging is on.
+        NSBonjourServices: [_adb-tls-connect._tcp, _adb-tls-pairing._tcp, _adb._tcp]
+    postBuildScripts:
+      # adb arrives signed by Google. Under the hardened runtime the app may only
+      # launch code its own team signed, so it is re-signed before the bundle.
+      - name: Sign helpers
+        basedOnDependencyAnalysis: false
+        script: |
+          adb="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Helpers/adb"
+          identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
+          if [ "$identity" = "-" ]; then
+            codesign --force --sign - "$adb"
+          else
+            codesign --force --options runtime --timestamp --sign "$identity" "$adb"
+          fi
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.reffwu.pixelmirror
+        GENERATE_INFOPLIST_FILE: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ARCHS: arm64
+schemes:
+  PixelMirror:
+    build:
+      targets:
+        PixelMirror: all
