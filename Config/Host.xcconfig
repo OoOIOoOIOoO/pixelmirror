@@ -1,0 +1,4 @@
+// Written by scripts/camera-signing.sh when a Developer ID profile that may
+// install system extensions is on this Mac. Without it the app builds as usual
+// and the camera stays out of the menus.
+#include? "Camera.local.xcconfig"

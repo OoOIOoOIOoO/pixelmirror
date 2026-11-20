@@ -69,6 +69,11 @@ final class StatusMenu: NSObject, NSMenuDelegate {
           controller?.isRecording == true
             ? String(localized: "Stop Recording") : String(localized: "Record Screen")
         ) { controller?.toggleRecording() })
+      if Webcam.canInstall {
+        let webcam = action(String(localized: "Use as Webcam")) { Webcam.shared.toggle(phone) }
+        webcam.state = Webcam.shared.phoneID == phone.id ? .on : .off
+        menu.addItem(webcam)
+      }
       menu.addItem(action(String(localized: "Stop Mirroring")) { mirrors.stop(phone) })
       menu.addItem(.separator())
     }

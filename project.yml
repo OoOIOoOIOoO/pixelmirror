@@ -37,6 +37,7 @@ targets:
         buildPhase: resources
     dependencies:
       - package: Sparkle
+      - target: PixelMirrorCamera
     info:
       path: Info.plist
       properties:
@@ -70,12 +71,48 @@ targets:
           else
             codesign --force --options runtime --timestamp --sign "$identity" "$adb"
           fi
+    # Installing the camera needs a Developer ID profile with System Extension;
+    # scripts/camera-signing.sh writes this file when one is installed.
+    configFiles:
+      Release: Config/Host.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.reffwu.pixelmirror
         GENERATE_INFOPLIST_FILE: "NO"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ARCHS: arm64
+  # The phone's camera as a Mac camera. The app pushes frames into it.
+  PixelMirrorCamera:
+    type: system-extension
+    platform: macOS
+    sources:
+      - path: Camera
+    info:
+      path: Camera/Info.plist
+      properties:
+        CFBundleName: PixelMirror Camera
+        CFBundlePackageType: $(PRODUCT_BUNDLE_PACKAGE_TYPE)
+        CFBundleDisplayName: PixelMirror Camera
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        CFBundleDevelopmentRegion: en
+        LSMinimumSystemVersion: "14.0"
+        NSSystemExtensionUsageDescription: Shows your phone's camera to apps on this Mac.
+        CMIOExtension:
+          CMIOExtensionMachServiceName: $(TeamIdentifierPrefix)com.reffwu.pixelmirror.camera
+    entitlements:
+      path: Camera/Camera.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.application-groups:
+          - $(TeamIdentifierPrefix)com.reffwu.pixelmirror.camera
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.reffwu.pixelmirror.camera
+        PRODUCT_NAME: com.reffwu.pixelmirror.camera
+        GENERATE_INFOPLIST_FILE: "NO"
+        ARCHS: arm64
+        SKIP_INSTALL: "YES"
 schemes:
   PixelMirror:
     build:

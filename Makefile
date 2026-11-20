@@ -7,6 +7,7 @@ vendor:
 	scripts/vendor.sh
 
 project: vendor
+	scripts/camera-signing.sh
 	xcodegen generate
 
 build: project

@@ -11,7 +11,10 @@ struct PixelMirrorApp: App {
     let hub = DeviceHub.shared
     let mirrors = MirrorManager.shared
     hub.onPhoneReady = { mirrors.phoneBecameReady($0) }
-    hub.onPhonesChanged = { mirrors.phonesChanged($0) }
+    hub.onPhonesChanged = {
+      mirrors.phonesChanged($0)
+      Webcam.shared.phonesChanged($0)
+    }
     hub.start()
     PhoneNotifications.shared.start()
     StatusMenu.shared.start()
@@ -63,6 +66,7 @@ struct WindowCommands: Commands {
 /// The phone's own buttons, for the mirror window in front.
 struct PhoneCommands: Commands {
   @ObservedObject private var hub = DeviceHub.shared
+  @ObservedObject private var webcam = Webcam.shared
 
   var body: some Commands {
     CommandMenu("Phone") {
@@ -78,6 +82,17 @@ struct PhoneCommands: Commands {
       }
       .keyboardShortcut("p", modifiers: [.command, .shift])
       .disabled(hub.phones.isEmpty)
+      if Webcam.canInstall {
+        Toggle(
+          "Use as Webcam",
+          isOn: Binding(
+            get: { webcam.phoneID != nil },
+            set: { _ in
+              if let phone = MirrorManager.shared.currentPhone { Webcam.shared.toggle(phone) }
+            })
+        )
+        .disabled(hub.phones.isEmpty)
+      }
       Divider()
       Button("Take Screenshot") { MirrorManager.shared.keyController?.takeScreenshot() }
         .keyboardShortcut("s", modifiers: [.command, .option])

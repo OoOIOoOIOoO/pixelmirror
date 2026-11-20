@@ -21,6 +21,17 @@ xcodebuild archive -quiet \
   -archivePath "$archive" -destination 'generic/platform=macOS' \
   -clonedSourcePackagesDirPath "$packages"
 
+# The camera's profile, when scripts/camera-signing.sh found one.
+profiles=""
+camera_profile="$(awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ { print $2 }' Config/Camera.local.xcconfig 2>/dev/null || true)"
+if [ -n "$camera_profile" ]; then
+  profiles="  <key>provisioningProfiles</key>
+  <dict>
+    <key>com.reffwu.pixelmirror</key>
+    <string>${camera_profile}</string>
+  </dict>"
+fi
+
 cat > "$options" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -36,6 +47,7 @@ cat > "$options" <<PLIST
   <string>Developer ID Application</string>
   <key>teamID</key>
   <string>${team}</string>
+${profiles}
 </dict>
 </plist>
 PLIST

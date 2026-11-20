@@ -9,3 +9,6 @@ __pycache__/
 # Fetched and verified by scripts/vendor.sh from vendor.lock
 Vendor/
 *.apk
+
+# Made by scripts/camera-signing.sh for this Mac
+Config/Camera.local.xcconfig
