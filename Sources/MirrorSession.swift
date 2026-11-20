@@ -9,6 +9,8 @@ protocol MirrorSessionDelegate: AnyObject {
   func sessionDidStart(_ session: MirrorSession, deviceName: String)
   func session(_ session: MirrorSession, videoSizeChanged size: CGSize)
   func sessionDidEnd(_ session: MirrorSession, error: String?)
+  /// The phone refuses touch and keys from the computer (Xiaomi, OPPO and others need a switch).
+  func sessionInputBlocked(_ session: MirrorSession)
 }
 
 /// Runs the scrcpy server on the phone and keeps its three streams going:
@@ -28,6 +30,7 @@ final class MirrorSession: @unchecked Sendable {
   private var stopped = false
   private let lock = NSLock()
   private var serverLog = ""
+  private var inputBlocked = false
 
   init(transport: String, isUSB: Bool, renderer: AVSampleBufferDisplayLayer) {
     self.transport = transport
@@ -89,7 +92,10 @@ final class MirrorSession: @unchecked Sendable {
       guard let self, !text.isEmpty else { return }
       self.lock.lock()
       self.serverLog = String((self.serverLog + text).suffix(4000))
+      let blocked = !self.inputBlocked && self.serverLog.contains("INJECT_EVENTS")
+      if blocked { self.inputBlocked = true }
       self.lock.unlock()
+      if blocked { DispatchQueue.main.async { self.delegate?.sessionInputBlocked(self) } }
     }
     process.terminationHandler = { [weak self] _ in
       pipe.fileHandleForReading.readabilityHandler = nil

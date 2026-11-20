@@ -122,9 +122,16 @@ enum ADB {
     }
   }
 
-  static func connect(_ address: String) -> Bool {
-    let result = run(["connect", address], timeout: 6)
-    return result.ok && result.output.contains("connected to")
+  enum Connection {
+    case connected
+    case needsPairing  // the phone answered but does not know this Mac
+    case unreachable  // nothing answered at that address
+  }
+
+  static func connect(_ address: String) -> Connection {
+    let output = run(["connect", address], timeout: 6).output
+    if output.contains("connected to") && !output.contains("failed") { return .connected }
+    return output.contains("authenticate") ? .needsPairing : .unreachable
   }
 
   static func disconnect(_ address: String) {

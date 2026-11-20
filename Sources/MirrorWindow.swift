@@ -62,6 +62,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   private(set) var phone: Phone
   private let mirrorView = MirrorView()
   private let overlay = NSHostingView(rootView: MirrorOverlay(text: "", busy: true))
+  private let notice = NSHostingView(rootView: InputBlockedNotice(maker: "", close: {}))
   private var session: MirrorSession?
   private var videoSize = CGSize.zero
   private var retries = 0
@@ -93,6 +94,9 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     overlay.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(mirrorView)
     container.addSubview(overlay)
+    notice.translatesAutoresizingMaskIntoConstraints = false
+    notice.isHidden = true
+    container.addSubview(notice)
     NSLayoutConstraint.activate([
       mirrorView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
       mirrorView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
@@ -100,6 +104,9 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       mirrorView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
       overlay.centerXAnchor.constraint(equalTo: container.centerXAnchor),
       overlay.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+      notice.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+      notice.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+      notice.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16),
     ])
     window.contentView = container
     window.addTitlebarAccessoryViewController(buttons)
@@ -116,6 +123,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     session?.delegate = nil
     session?.stop()
     showOverlay(String(localized: "Connecting to \(phone.name)…"), busy: true)
+    notice.isHidden = true
     let session = MirrorSession(
       transport: phone.transport, isUSB: phone.isUSB, renderer: mirrorView.displayLayer)
     session.delegate = self
@@ -137,6 +145,14 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   func phoneWentAway() {
     phonePresent = false
     showOverlay(String(localized: "Waiting for \(phone.name)…"), busy: true)
+  }
+
+  func sessionInputBlocked(_ session: MirrorSession) {
+    guard session === self.session else { return }
+    notice.rootView = InputBlockedNotice(maker: phone.maker) { [weak self] in
+      self?.notice.isHidden = true
+    }
+    notice.isHidden = false
   }
 
   func sessionDidStart(_ session: MirrorSession, deviceName: String) {
@@ -368,6 +384,51 @@ private final class TitlebarButton: NSButton {
     typealias Lookup = @convention(c) (AnyObject, Selector, NSString, NSString?) -> NSImage?
     let lookup = unsafeBitCast(NSImage.method(for: selector), to: Lookup.self)
     return lookup(NSImage.self, selector, name as NSString, nil)?.withSymbolConfiguration(config)
+  }
+}
+
+/// Shown when the phone refuses touch from the computer, with the switch its maker hides it behind.
+private struct InputBlockedNotice: View {
+  var maker: String
+  var close: () -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: "hand.raised.fill")
+        .foregroundStyle(.orange)
+        .font(.system(size: 15))
+      VStack(alignment: .leading, spacing: 3) {
+        Text("This phone blocks touch from your Mac")
+          .font(.system(size: 12, weight: .semibold))
+        Text(advice)
+          .font(.system(size: 11))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer(minLength: 0)
+      Button(action: close) {
+        Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(.secondary)
+    }
+    .padding(12)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .environment(\.colorScheme, .dark)
+  }
+
+  private var advice: String {
+    switch maker.lowercased() {
+    case "xiaomi", "redmi", "poco":
+      return String(
+        localized:
+          "In Developer options, turn on USB debugging (Security settings), then restart the phone."
+      )
+    case "oppo", "oneplus", "realme":
+      return String(localized: "In Developer options, turn on Disable permission monitoring.")
+    default:
+      return String(localized: "In Developer options, allow input from USB debugging.")
+    }
   }
 }
 

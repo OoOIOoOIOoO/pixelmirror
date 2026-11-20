@@ -7,6 +7,7 @@ struct MainView: View {
   @StateObject private var whatsNew = WhatsNewManager.shared
   @ObservedObject private var hub = DeviceHub.shared
   @ObservedObject private var mirrors = MirrorManager.shared
+  @ObservedObject private var network = MacNetwork.shared
   @State private var showsPairing = false
   @Environment(\.openWindow) private var openWindow
 
@@ -15,7 +16,7 @@ struct MainView: View {
       hero
       VStack(spacing: 16) {
         status
-        if hub.known.isEmpty || showsPairing {
+        if hub.known.isEmpty || showsPairing || hub.unpairedPhoneNearby {
           PairingCard()
             .transition(.opacity.combined(with: .move(edge: .top)))
         }
@@ -69,15 +70,28 @@ struct MainView: View {
         SettingsRow(
           "antenna.radiowaves.left.and.right", tint: .blue,
           title: searchingTitle,
-          subtitle: String(localized: "Turn on Wireless debugging, or plug it in.")
+          subtitle: hub.searchingLong && !hub.known.isEmpty
+            ? String(
+              localized:
+                "Wireless debugging turns off after a restart or a Wi-Fi change. Turn it on again.")
+            : String(localized: "Turn on Wireless debugging, or plug it in.")
         ) {
           ProgressView().controlSize(.small)
         }
+        checkup
       } else {
         ForEach(Array(hub.phones.enumerated()), id: \.element.id) { index, phone in
           if index > 0 { SettingsDivider() }
           phoneRow(phone)
         }
+      }
+      if hub.unpairedPhoneNearby {
+        SettingsDivider()
+        SettingsRow(
+          "qrcode", tint: .indigo,
+          title: String(localized: "Found a phone that isn't paired"),
+          subtitle: String(localized: "Scan the code below with your phone.")
+        ) {}
       }
       if hub.needsUSBApproval {
         SettingsDivider()
@@ -99,6 +113,43 @@ struct MainView: View {
           .controlSize(.small)
         }
       }
+    }
+  }
+
+  /// Why nothing turns up, most likely cause first. Only one row: the one to fix now.
+  @ViewBuilder private var checkup: some View {
+    if network.localNetworkDenied {
+      SettingsDivider()
+      SettingsRow(
+        "hand.raised.fill", tint: .orange,
+        title: String(localized: "Local network access is off"),
+        subtitle: String(localized: "Turn it on for this app in Privacy & Security.")
+      ) {
+        Button(String(localized: "Open Settings")) { network.openLocalNetworkSettings() }
+          .controlSize(.small)
+      }
+    } else if network.offline {
+      SettingsDivider()
+      SettingsRow(
+        "wifi.slash", tint: .orange,
+        title: String(localized: "Your Mac is offline"),
+        subtitle: String(localized: "Join the Wi-Fi your phone is on.")
+      ) {}
+    } else if network.vpn {
+      SettingsDivider()
+      SettingsRow(
+        "lock.fill", tint: .orange,
+        title: String(localized: "A VPN is on"),
+        subtitle: String(localized: "It can hide your phone. Turn it off to connect.")
+      ) {}
+    } else if hub.phoneUnreachable {
+      SettingsDivider()
+      SettingsRow(
+        "wifi.exclamationmark", tint: .orange,
+        title: String(localized: "Your phone can't be reached"),
+        subtitle: String(
+          localized: "Your router may keep devices apart. Try another Wi-Fi, or a cable.")
+      ) {}
     }
   }
 
