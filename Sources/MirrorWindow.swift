@@ -270,21 +270,18 @@ private final class PhoneButtons: NSTitlebarAccessoryViewController {
     stack.spacing = 3
     stack.distribution = .fillEqually
     stack.translatesAutoresizingMaskIntoConstraints = false
-    for button in stack.arrangedSubviews {
-      (button as? NSButton)?.target = self
-      button.widthAnchor.constraint(equalToConstant: 26).isActive = true
-      button.heightAnchor.constraint(equalToConstant: 24).isActive = true
-    }
-    let container = NSView()
+    for button in stack.arrangedSubviews { (button as? NSButton)?.target = self }
+    // The same metrics as the buttons this replaces: 118 × 24, 6 pt from the edge.
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: 118, height: 24))
     container.addSubview(stack)
     NSLayoutConstraint.activate([
       stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-      stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-      stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-      container.heightAnchor.constraint(equalToConstant: 28),
-      container.widthAnchor.constraint(equalToConstant: 4 * 26 + 3 * 3 + 8),
+      stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -6),
+      stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 1),
+      stack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -1),
+      container.widthAnchor.constraint(equalToConstant: 118),
+      container.heightAnchor.constraint(equalToConstant: 24),
     ])
-    container.frame.size = NSSize(width: 4 * 26 + 3 * 3 + 8, height: 28)
     view = container
     update(screenOn: controller?.isPhoneScreenOn ?? false)
   }

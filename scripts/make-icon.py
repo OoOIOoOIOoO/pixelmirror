@@ -82,7 +82,7 @@ def face():
     canvas = vertical_gradient(BACKGROUND[0], BACKGROUND[1], INNER[1], INNER[3]).convert("RGBA")
     back = (625, 420, 1217, 1420)
     front = (830, 628, 1422, 1628)
-    radius = 92
+    radius = 123  # iPhone Mirroring: r 60 on a 288 wide phone at 1024
 
     # Soft shadows lift both phones off the background.
     for box, alpha, blur in ((back, 70, 36), (front, 90, 44)):
@@ -106,7 +106,7 @@ def face():
     draw = ImageDraw.Draw(marks)
     cx = (front[0] + front[2]) // 2
     draw.ellipse((cx - 19, front[1] + 46, cx + 19, front[1] + 84), fill=(6, 70, 80, 230))
-    draw.rounded_rectangle((cx - 96, front[3] - 54, cx + 96, front[3] - 40), radius=7, fill=(226, 255, 248, 235))
+    draw.rounded_rectangle((cx - 111, front[3] - 57, cx + 111, front[3] - 39), radius=9, fill=(226, 255, 248, 235))
     return Image.alpha_composite(canvas, marks)
 
 
