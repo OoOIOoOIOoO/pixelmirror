@@ -19,7 +19,15 @@ final class MirrorSession: @unchecked Sendable {
   let transport: String
   let isUSB: Bool
   let renderer: AVSampleBufferDisplayLayer
+  /// An app in a display of its own, instead of the phone's screen.
+  let app: AppLaunch?
   weak var delegate: MirrorSessionDelegate?
+
+  struct AppLaunch {
+    var package: String
+    var size: CGSize  // pixels
+    var dpi: Int
+  }
 
   private(set) var videoSize = CGSize.zero
   private let control = ControlChannel()
@@ -31,11 +39,15 @@ final class MirrorSession: @unchecked Sendable {
   private let lock = NSLock()
   private var serverLog = ""
   private var inputBlocked = false
+  private var appDisplay: Int?
 
-  init(transport: String, isUSB: Bool, renderer: AVSampleBufferDisplayLayer) {
+  init(
+    transport: String, isUSB: Bool, renderer: AVSampleBufferDisplayLayer, app: AppLaunch? = nil
+  ) {
     self.transport = transport
     self.isUSB = isUSB
     self.renderer = renderer
+    self.app = app
   }
 
   var input: ControlChannel { control }
@@ -72,14 +84,23 @@ final class MirrorSession: @unchecked Sendable {
     else { throw Failure(description: "forward: \(forward.output)") }
     forwardPort = port
 
-    let options = [
-      "scid=\(scid)", "log_level=info", "tunnel_forward=true",
-      "video_codec=h264", "audio_codec=raw", "audio_source=playback", "audio_dup=false",
+    var options = [
+      "scid=\(scid)", "log_level=info", "tunnel_forward=true", "video_codec=h264",
       // A cable carries the full resolution; Wi-Fi gets a size and rate it can keep up with.
       "max_size=\(isUSB ? 0 : 1920)", "video_bit_rate=\(isUSB ? 16_000_000 : 8_000_000)",
       "max_fps=60", "stay_awake=true", "clipboard_autosync=true", "power_off_on_close=false",
       "cleanup=true",
     ]
+    if let app {
+      // The app gets a display of its own that follows the window's size. Its sound
+      // already plays through the phone window, and its keyboard stays off the phone.
+      options += [
+        "audio=false", "new_display=\(Int(app.size.width))x\(Int(app.size.height))/\(app.dpi)",
+        "flex_display=true", "display_ime_policy=hide",
+      ]
+    } else {
+      options += ["audio_codec=raw", "audio_source=playback", "audio_dup=false"]
+    }
     let command =
       "CLASSPATH=\(remote) app_process / com.genymobile.scrcpy.Server \(ADB.serverVersion) "
       + options.joined(separator: " ")
@@ -92,6 +113,11 @@ final class MirrorSession: @unchecked Sendable {
       guard let self, !text.isEmpty else { return }
       self.lock.lock()
       self.serverLog = String((self.serverLog + text).suffix(4000))
+      if self.appDisplay == nil,
+        let match = self.serverLog.firstMatch(of: #/New display: \S+ \(id=(\d+)\)/#)
+      {
+        self.appDisplay = Int(match.1)
+      }
       let blocked = !self.inputBlocked && self.serverLog.contains("INJECT_EVENTS")
       if blocked { self.inputBlocked = true }
       self.lock.unlock()
@@ -120,11 +146,12 @@ final class MirrorSession: @unchecked Sendable {
       }
     }
     guard let video else { throw Failure(description: "The phone did not answer. \(log)") }
-    guard let audioSocket = StreamSocket.connect(port: port),
+    let audioSocket = app == nil ? StreamSocket.connect(port: port) : nil
+    guard app != nil || audioSocket != nil,
       let controlSocket = StreamSocket.connect(port: port, noDelay: true)
     else { throw Failure(description: "Could not open the audio and control channels.") }
     lock.lock()
-    sockets = [video, audioSocket, controlSocket]
+    sockets = [video, controlSocket] + (audioSocket.map { [$0] } ?? [])
     lock.unlock()
 
     guard let meta = video.read(64) else { throw Failure(description: "No device name.") }
@@ -132,7 +159,8 @@ final class MirrorSession: @unchecked Sendable {
     control.attach(controlSocket)
     DispatchQueue.main.async { self.delegate?.sessionDidStart(self, deviceName: name) }
 
-    Thread.detachNewThread { [self] in readAudio(audioSocket) }
+    if let audioSocket { Thread.detachNewThread { [self] in readAudio(audioSocket) } }
+    if let app { control.startApp(app.package) }
     Thread.detachNewThread { [self] in control.readDeviceMessages() }
     readVideo(video)
   }
@@ -141,6 +169,13 @@ final class MirrorSession: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
     return stopped
+  }
+
+  /// The id of the app's own display, once the phone has made it.
+  var displayID: Int? {
+    lock.lock()
+    defer { lock.unlock() }
+    return appDisplay
   }
 
   private var log: String {

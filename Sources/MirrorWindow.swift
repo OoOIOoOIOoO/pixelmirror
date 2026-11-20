@@ -9,15 +9,17 @@ final class MirrorManager: ObservableObject {
   static let shared = MirrorManager()
 
   @Published private(set) var mirroring: Set<String> = []
+  /// Phone windows by phone id, app windows by phone id and package.
   private var controllers: [String: MirrorWindowController] = [:]
 
   /// Phones whose window someone closed: they are not reopened until they disconnect.
   private var dismissed: Set<String> = []
 
   func phoneBecameReady(_ phone: Phone) {
-    if let controller = controllers[phone.id] {
+    for controller in controllers.values where controller.phone.id == phone.id {
       controller.resume(with: phone)
-    } else if !dismissed.contains(phone.id) {
+    }
+    if controllers[phone.id] == nil, !dismissed.contains(phone.id) {
       open(phone)
     }
   }
@@ -25,27 +27,41 @@ final class MirrorManager: ObservableObject {
   func phonesChanged(_ phones: [Phone]) {
     let present = Set(phones.map(\.id))
     dismissed = dismissed.intersection(present)
-    for (id, controller) in controllers where !present.contains(id) {
+    for controller in controllers.values where !present.contains(controller.phone.id) {
       controller.phoneWentAway()
     }
   }
 
   func open(_ phone: Phone) {
     dismissed.remove(phone.id)
-    if let controller = controllers[phone.id] {
+    show(key: phone.id) { MirrorWindowController(phone: phone) }
+  }
+
+  /// Opens a phone app in a Mac window of its own.
+  func open(_ app: PhoneApp, on phone: Phone) {
+    PhoneApps.shared.opened(app)
+    show(key: "\(phone.id)/\(app.package)") { MirrorWindowController(phone: phone, app: app) }
+  }
+
+  private func show(key: String, make: () -> MirrorWindowController) {
+    if let controller = controllers[key] {
       controller.showWindow(nil)
       controller.window?.makeKeyAndOrderFront(nil)
       NSApp.activate(ignoringOtherApps: true)
       return
     }
-    let controller = MirrorWindowController(phone: phone)
+    let controller = make()
+    let isPhone = controller.app == nil
+    let phoneID = controller.phone.id
     controller.onClose = { [weak self] in
-      self?.controllers[phone.id] = nil
-      self?.mirroring.remove(phone.id)
-      self?.dismissed.insert(phone.id)
+      self?.controllers[key] = nil
+      if isPhone {
+        self?.mirroring.remove(phoneID)
+        self?.dismissed.insert(phoneID)
+      }
     }
-    controllers[phone.id] = controller
-    mirroring.insert(phone.id)
+    controllers[key] = controller
+    if isPhone { mirroring.insert(phoneID) }
     controller.showWindow(nil)
     controller.window?.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
@@ -55,11 +71,17 @@ final class MirrorManager: ObservableObject {
     controllers.values.first { $0.window?.isKeyWindow == true }
       ?? controllers.values.first { $0.window?.isMainWindow == true }
   }
+
+  /// The phone the next command is for: the one in front, else the only one there is.
+  var currentPhone: Phone? {
+    keyController?.phone ?? DeviceHub.shared.phones.first
+  }
 }
 
 @MainActor
 final class MirrorWindowController: NSWindowController, NSWindowDelegate, MirrorSessionDelegate {
   private(set) var phone: Phone
+  let app: PhoneApp?
   private let mirrorView = MirrorView()
   private let overlay = NSHostingView(rootView: MirrorOverlay(text: "", busy: true))
   private let notice = NSHostingView(rootView: InputBlockedNotice(maker: "", close: {}))
@@ -72,10 +94,11 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   @AppStorage("phoneScreenOff") private var phoneScreenOff = true
   private lazy var buttons = PhoneButtons(controller: self)
 
-  init(phone: Phone) {
+  init(phone: Phone, app: PhoneApp? = nil) {
     self.phone = phone
+    self.app = app
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 360, height: 780),
+      contentRect: NSRect(x: 0, y: 0, width: app == nil ? 360 : 400, height: 780),
       styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered, defer: false)
     window.titleVisibility = .visible
@@ -83,7 +106,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     window.appearance = NSAppearance(named: .darkAqua)
     window.collectionBehavior.insert(.fullScreenPrimary)
     window.isReleasedWhenClosed = false
-    window.setFrameAutosaveName("Mirror-\(phone.id)")
+    let frameName = app.map { "App-\($0.package)" } ?? "Mirror-\(phone.id)"
+    window.setFrameAutosaveName(frameName)
     super.init(window: window)
     window.delegate = self
 
@@ -111,7 +135,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     window.contentView = container
     window.addTitlebarAccessoryViewController(buttons)
     updateTitle()
-    if !window.setFrameUsingName("Mirror-\(phone.id)") { window.center() }
+    if !window.setFrameUsingName(frameName) { window.center() }
+    if app != nil { window.contentMinSize = NSSize(width: 280, height: 360) }
     startSession()
   }
 
@@ -125,7 +150,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     showOverlay(String(localized: "Connecting to \(phone.name)…"), busy: true)
     notice.isHidden = true
     let session = MirrorSession(
-      transport: phone.transport, isUSB: phone.isUSB, renderer: mirrorView.displayLayer)
+      transport: phone.transport, isUSB: phone.isUSB, renderer: mirrorView.displayLayer,
+      app: app.map { MirrorSession.AppLaunch(package: $0.package, size: displaySize, dpi: dpi) })
     session.delegate = self
     mirrorView.control = session.input
     self.session = session
@@ -158,7 +184,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   func sessionDidStart(_ session: MirrorSession, deviceName: String) {
     guard session === self.session else { return }
     retries = 0
-    if phoneScreenOff { session.input.setScreenPower(on: false) }
+    if phoneScreenOff, app == nil { session.input.setScreenPower(on: false) }
   }
 
   func session(_ session: MirrorSession, videoSizeChanged size: CGSize) {
@@ -169,7 +195,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     let first = videoSize == .zero
     videoSize = size
     mirrorView.videoSize = size
-    fit(to: size, resize: first || rotated)
+    // An app's display follows its window, not the other way round.
+    if app == nil { fit(to: size, resize: first || rotated) }
   }
 
   func sessionDidEnd(_ session: MirrorSession, error: String?) {
@@ -192,8 +219,32 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   // MARK: - Window
 
   private func updateTitle() {
+    if let app {
+      window?.title = app.label
+      window?.subtitle = phone.name
+      return
+    }
     window?.title = phone.name
     window?.subtitle = phone.isUSB ? String(localized: "USB") : String(localized: "Wi-Fi")
+  }
+
+  /// An app's display in pixels: the window's size, so one Mac point is one Android dp.
+  private var displaySize: CGSize {
+    let points = window?.contentView?.bounds.size ?? CGSize(width: 400, height: 760)
+    let scale = window?.backingScaleFactor ?? 2
+    return CGSize(
+      width: (points.width * scale).rounded(), height: (points.height * scale).rounded())
+  }
+
+  private var dpi: Int { Int(160 * (window?.backingScaleFactor ?? 2)) }
+
+  func windowDidEndLiveResize(_ notification: Notification) {
+    if app != nil { session?.input.resizeDisplay(displaySize) }
+  }
+
+  func windowDidResize(_ notification: Notification) {
+    guard app != nil, window?.inLiveResize == false else { return }
+    session?.input.resizeDisplay(displaySize)
   }
 
   private func fit(to size: CGSize, resize: Bool) {
@@ -282,20 +333,23 @@ private final class PhoneButtons: NSTitlebarAccessoryViewController {
       symbol: "iphone.app.switcher", tip: String(localized: "Recent Apps"),
       action: #selector(recentsAction))
     screen.action = #selector(screenAction)
-    let stack = NSStackView(views: [back, home, recents, screen])
+    // An app window only needs Back: Home and Recent Apps belong to the phone's own screen.
+    let isApp = controller?.app != nil
+    let stack = NSStackView(views: isApp ? [back] : [back, home, recents, screen])
     stack.spacing = 3
     stack.distribution = .fillEqually
     stack.translatesAutoresizingMaskIntoConstraints = false
     for button in stack.arrangedSubviews { (button as? NSButton)?.target = self }
     // The same metrics as the buttons this replaces: 118 × 24, 6 pt from the edge.
-    let container = NSView(frame: NSRect(x: 0, y: 0, width: 118, height: 24))
+    let width: CGFloat = isApp ? 32 : 118
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 24))
     container.addSubview(stack)
     NSLayoutConstraint.activate([
       stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
       stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -6),
       stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 1),
       stack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -1),
-      container.widthAnchor.constraint(equalToConstant: 118),
+      container.widthAnchor.constraint(equalToConstant: width),
       container.heightAnchor.constraint(equalToConstant: 24),
     ])
     view = container

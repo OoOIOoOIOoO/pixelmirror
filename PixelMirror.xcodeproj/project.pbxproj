@@ -10,6 +10,7 @@
 		1762DEA6FD18728E3275B6D3 /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15186BD95E2825A38B52FD3C /* WhatsNewView.swift */; };
 		18E6925F91631E7165888FFA /* ADB.swift in Sources */ = {isa = PBXBuildFile; fileRef = A89DFF44450DFE23CC184C29 /* ADB.swift */; };
 		1A0E523AE9ACD54D01F6CE40 /* Helpers in Resources */ = {isa = PBXBuildFile; fileRef = C674CA0EBC485EFB2A7CCE34 /* Helpers */; };
+		3A82A0F9EC50C8237461EE0B /* AppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA5FFA6D4C8346EA2A3FD53D /* AppIntents.swift */; };
 		56EBD025F99C67460C63B7F2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AF00964A122CA3B95C78A473 /* Assets.xcassets */; };
 		5E06F6DF68CB644A4444548F /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E5EC94DE21AEDD2B0A4F1674 /* InfoPlist.xcstrings */; };
 		5E3282EFBF787D93A33F2E12 /* AudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1E75E3C78DC0ADCD88E343 /* AudioPlayer.swift */; };
@@ -20,6 +21,7 @@
 		C024BCCB5A0B611813B7DCF5 /* SettingsChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1BB8279B868E52343BCD76 /* SettingsChrome.swift */; };
 		C8E53C02A810B96A3C5B55E3 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21CDAF79550A6433B558312C /* Preferences.swift */; };
 		D4825E39B333F7822E5177C6 /* DeviceHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DDF581497F344FD17345A7 /* DeviceHub.swift */; };
+		DAF86FAD9ACC7A0EE326636E /* PhoneApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD616DF78FDBA7EABD6F4DB3 /* PhoneApps.swift */; };
 		EAC424CF17BDF45B70C12814 /* MacNetwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F5E49BD150B8203FEA5A68 /* MacNetwork.swift */; };
 		EF11B0858A0918D14B24B58B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 5CFE9A5A447009CE9A440505 /* Sparkle */; };
 		F0B1E842DD1B46BC940DBD69 /* MirrorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E91D975C7B15A16E35104B3 /* MirrorWindow.swift */; };
@@ -43,11 +45,13 @@
 		AF00964A122CA3B95C78A473 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C674CA0EBC485EFB2A7CCE34 /* Helpers */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Helpers; path = Vendor/Helpers; sourceTree = SOURCE_ROOT; };
 		C9F5E49BD150B8203FEA5A68 /* MacNetwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacNetwork.swift; sourceTree = "<group>"; };
+		DA5FFA6D4C8346EA2A3FD53D /* AppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntents.swift; sourceTree = "<group>"; };
 		DC24B5A19E325C508FB5E2B4 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		E4DDF581497F344FD17345A7 /* DeviceHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceHub.swift; sourceTree = "<group>"; };
 		E5EC94DE21AEDD2B0A4F1674 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		EBBF8A78350EB0D1689A0F31 /* PixelMirrorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PixelMirrorApp.swift; sourceTree = "<group>"; };
 		F565F0B919AA44A067F4F94E /* ControlChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlChannel.swift; sourceTree = "<group>"; };
+		FD616DF78FDBA7EABD6F4DB3 /* PhoneApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneApps.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +96,7 @@
 			isa = PBXGroup;
 			children = (
 				A89DFF44450DFE23CC184C29 /* ADB.swift */,
+				DA5FFA6D4C8346EA2A3FD53D /* AppIntents.swift */,
 				3A1E75E3C78DC0ADCD88E343 /* AudioPlayer.swift */,
 				F565F0B919AA44A067F4F94E /* ControlChannel.swift */,
 				E4DDF581497F344FD17345A7 /* DeviceHub.swift */,
@@ -99,6 +104,7 @@
 				DC24B5A19E325C508FB5E2B4 /* MainView.swift */,
 				6424503747E1F4C560994DE9 /* MirrorSession.swift */,
 				0E91D975C7B15A16E35104B3 /* MirrorWindow.swift */,
+				FD616DF78FDBA7EABD6F4DB3 /* PhoneApps.swift */,
 				EBBF8A78350EB0D1689A0F31 /* PixelMirrorApp.swift */,
 				21CDAF79550A6433B558312C /* Preferences.swift */,
 				0F1BB8279B868E52343BCD76 /* SettingsChrome.swift */,
@@ -237,6 +243,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				18E6925F91631E7165888FFA /* ADB.swift in Sources */,
+				3A82A0F9EC50C8237461EE0B /* AppIntents.swift in Sources */,
 				5E3282EFBF787D93A33F2E12 /* AudioPlayer.swift in Sources */,
 				F1B383ADF66DCA594D9C90DC /* ControlChannel.swift in Sources */,
 				D4825E39B333F7822E5177C6 /* DeviceHub.swift in Sources */,
@@ -244,6 +251,7 @@
 				FCE9095F852A90E83248F79E /* MainView.swift in Sources */,
 				71D1ABDB220C32481770B2C3 /* MirrorSession.swift in Sources */,
 				F0B1E842DD1B46BC940DBD69 /* MirrorWindow.swift in Sources */,
+				DAF86FAD9ACC7A0EE326636E /* PhoneApps.swift in Sources */,
 				7489F3A4BB619EA855DB26A4 /* PixelMirrorApp.swift in Sources */,
 				C8E53C02A810B96A3C5B55E3 /* Preferences.swift in Sources */,
 				C024BCCB5A0B611813B7DCF5 /* SettingsChrome.swift in Sources */,

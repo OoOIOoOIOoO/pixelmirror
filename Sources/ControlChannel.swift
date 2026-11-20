@@ -123,6 +123,23 @@ final class ControlChannel: @unchecked Sendable {
 
   func rotate() { send(Message(11)) }
 
+  /// Starts an app on the display being mirrored.
+  func startApp(_ package: String) {
+    var m = Message(16)
+    let bytes = Data(package.utf8.prefix(255))
+    m.u8(UInt8(bytes.count))
+    m.data.append(bytes)
+    send(m)
+  }
+
+  /// Resizes an app's own display to follow its window, in pixels.
+  func resizeDisplay(_ size: CGSize) {
+    var m = Message(21)
+    m.u16(UInt16(clamping: Int(size.width)))
+    m.u16(UInt16(clamping: Int(size.height)))
+    send(m)
+  }
+
   /// Types text the way a person would expect: plain characters directly,
   /// anything else (Chinese, emoji, accents) through the clipboard.
   func type(_ string: String) {

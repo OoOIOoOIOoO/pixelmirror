@@ -60,8 +60,16 @@ struct WindowCommands: Commands {
 
 /// The phone's own buttons, for the mirror window in front.
 struct PhoneCommands: Commands {
+  @ObservedObject private var hub = DeviceHub.shared
+
   var body: some Commands {
     CommandMenu("Phone") {
+      Button("Open App…") {
+        if let phone = MirrorManager.shared.currentPhone { AppPicker.shared.show(for: phone) }
+      }
+      .keyboardShortcut("o")
+      .disabled(hub.phones.isEmpty)
+      Divider()
       Button("Back") { MirrorManager.shared.keyController?.back() }
         .keyboardShortcut("[")
       Button("Home") { MirrorManager.shared.keyController?.home() }
