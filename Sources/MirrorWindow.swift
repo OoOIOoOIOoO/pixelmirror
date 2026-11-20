@@ -231,6 +231,13 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   // MARK: - Window
 
   private func updateTitle() {
+    if let start = recordingStart {
+      let seconds = Int(Date().timeIntervalSince(start))
+      let time = String(format: "%d:%02d", seconds / 60, seconds % 60)
+      window?.title = app?.label ?? phone.name
+      window?.subtitle = String(localized: "Recording \(time)")
+      return
+    }
     if let app {
       window?.title = app.label
       window?.subtitle = phone.name
@@ -250,12 +257,13 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
 
   private var dpi: Int { Int(160 * (window?.backingScaleFactor ?? 2)) }
 
+  // While recording, the display keeps its size: one recording has one size.
   func windowDidEndLiveResize(_ notification: Notification) {
-    if app != nil { session?.input.resizeDisplay(displaySize) }
+    if app != nil, !isRecording { session?.input.resizeDisplay(displaySize) }
   }
 
   func windowDidResize(_ notification: Notification) {
-    guard app != nil, window?.inLiveResize == false else { return }
+    guard app != nil, !isRecording, window?.inLiveResize == false else { return }
     session?.input.resizeDisplay(displaySize)
   }
 
@@ -308,6 +316,74 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     files.send(urls, transport: phone.transport) { input.scanFile($0) }
   }
 
+  // MARK: - Screenshots and recordings
+
+  /// Saves to the Desktop and copies to the clipboard, like the Mac's own screenshots.
+  func takeScreenshot() {
+    let url = Capture.desktop.appendingPathComponent(
+      Capture.fileName(app?.label ?? phone.name, ext: "png"))
+    let frame = session?.currentFrame.flatMap {
+      NSBitmapImageRep(cgImage: $0).representation(using: .png, properties: [:])
+    }
+    guard app == nil else { return saveScreenshot(frame, to: url) }
+    // The phone's own capture is sharper than the stream over Wi-Fi.
+    let transport = phone.transport
+    DispatchQueue.global().async {
+      let data = ADB.data(["-s", transport, "exec-out", "screencap -p"], timeout: 20)
+      DispatchQueue.main.async { self.saveScreenshot(data ?? frame, to: url) }
+    }
+  }
+
+  private func saveScreenshot(_ data: Data?, to url: URL) {
+    guard let data, NSImage(data: data) != nil, (try? data.write(to: url)) != nil else {
+      files.note("exclamationmark.circle.fill", String(localized: "Couldn't take a screenshot"))
+      return
+    }
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setData(data, forType: .png)
+    Capture.play("Screen Capture.aif")
+    files.note("camera.fill", String(localized: "Saved to Desktop and copied"))
+  }
+
+  var isRecording: Bool { recordingStart != nil }
+  private var recordingStart: Date?
+  private var recordingTimer: Timer?
+
+  /// Records the window with the phone's sound to an .mp4 in Movies.
+  func toggleRecording() {
+    guard let session else { return }
+    if session.isRecording { return session.stopRecording() }
+    let url = Capture.movies.appendingPathComponent(
+      Capture.fileName(app?.label ?? phone.name, ext: "mp4"))
+    do {
+      try session.startRecording(to: url)
+    } catch {
+      files.note("exclamationmark.circle.fill", String(localized: "Couldn't start recording"))
+      return
+    }
+    recordingStart = Date()
+    Capture.play("begin_record.caf")
+    buttons.update(recording: true)
+    updateTitle()
+    recordingTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+      Task { @MainActor in self?.updateTitle() }
+    }
+  }
+
+  func session(_ session: MirrorSession, recordingFinished url: URL?) {
+    recordingStart = nil
+    recordingTimer?.invalidate()
+    recordingTimer = nil
+    buttons.update(recording: false)
+    updateTitle()
+    Capture.play("end_record.caf")
+    if url != nil {
+      files.note("film.fill", String(localized: "Saved to Movies"))
+    } else {
+      files.note("exclamationmark.circle.fill", String(localized: "Nothing was recorded"))
+    }
+  }
+
   // MARK: - Commands
 
   func back() { session?.input.backOrScreenOn() }
@@ -334,6 +410,9 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
 private final class PhoneButtons: NSTitlebarAccessoryViewController {
   private weak var controller: MirrorWindowController?
   private let screen = TitlebarButton()
+  private let stop = TitlebarButton()
+  private var width: NSLayoutConstraint?
+  private var baseWidth: CGFloat = 118
 
   init(controller: MirrorWindowController) {
     self.controller = controller
@@ -355,23 +434,30 @@ private final class PhoneButtons: NSTitlebarAccessoryViewController {
     screen.action = #selector(screenAction)
     // An app window only needs Back: Home and Recent Apps belong to the phone's own screen.
     let isApp = controller?.app != nil
-    let stack = NSStackView(views: isApp ? [back] : [back, home, recents, screen])
+    stop.image = TitlebarButton.symbol("stop.circle.fill", size: 14, weight: .regular)
+    stop.contentTintColor = .systemRed
+    stop.toolTip = String(localized: "Stop Recording")
+    stop.action = #selector(stopAction)
+    stop.isHidden = true
+    let stack = NSStackView(views: isApp ? [stop, back] : [stop, back, home, recents, screen])
     stack.spacing = 3
     stack.distribution = .fillEqually
     stack.translatesAutoresizingMaskIntoConstraints = false
     for button in stack.arrangedSubviews { (button as? NSButton)?.target = self }
     // The same metrics as the buttons this replaces: 118 × 24, 6 pt from the edge.
-    let width: CGFloat = isApp ? 32 : 118
-    let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 24))
+    baseWidth = isApp ? 32 : 118
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: baseWidth, height: 24))
     container.addSubview(stack)
     NSLayoutConstraint.activate([
       stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
       stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -6),
       stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 1),
       stack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -1),
-      container.widthAnchor.constraint(equalToConstant: width),
       container.heightAnchor.constraint(equalToConstant: 24),
     ])
+    let width = container.widthAnchor.constraint(equalToConstant: baseWidth)
+    width.isActive = true
+    self.width = width
     view = container
     update(screenOn: controller?.isPhoneScreenOn ?? false)
   }
@@ -388,6 +474,15 @@ private final class PhoneButtons: NSTitlebarAccessoryViewController {
       : String(localized: "Turn the phone's screen on")
   }
 
+  /// A red stop button joins the others while the window is being recorded.
+  func update(recording: Bool) {
+    stop.isHidden = !recording
+    let total = baseWidth + (recording ? 29 : 0)
+    width?.constant = total
+    view.setFrameSize(NSSize(width: total, height: 24))
+  }
+
+  @objc private func stopAction() { controller?.toggleRecording() }
   @objc private func backAction() { controller?.back() }
   @objc private func homeAction() { controller?.home() }
   @objc private func recentsAction() { controller?.recents() }

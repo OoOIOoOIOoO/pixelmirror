@@ -136,7 +136,9 @@ private struct AppPickerView: View {
       TextField("Search", text: $search)
         .textFieldStyle(.roundedBorder)
         .focused($searching)
-        .onSubmit { if let first = matches.first { open(first) } }
+        .onSubmit {
+          if let first = (search.isEmpty ? recents : []).first ?? matches.first { open(first) }
+        }
         .padding(10)
       Divider()
       if all.isEmpty {

@@ -123,6 +123,9 @@ final class ControlChannel: @unchecked Sendable {
 
   func rotate() { send(Message(11)) }
 
+  /// Restarts the phone's encoder, which then sends its parameters and a key frame.
+  func resetVideo() { send(Message(17)) }
+
   /// Starts an app on the display being mirrored.
   func startApp(_ package: String) {
     var m = Message(16)

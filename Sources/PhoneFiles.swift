@@ -13,10 +13,21 @@ final class FileSender: ObservableObject {
     case sending(count: Int, progress: Double)
     case sent(count: Int)
     case failed(name: String)
+    case note(symbol: String, text: String)
   }
 
   @Published private(set) var state = State.idle
   private var hideWork: DispatchWorkItem?
+
+  /// A short message in the same place, such as a saved screenshot.
+  func note(_ symbol: String, _ text: String) {
+    guard !isBusy else { return }
+    hideWork?.cancel()
+    state = .note(symbol: symbol, text: text)
+    let work = DispatchWorkItem { [weak self] in self?.state = .idle }
+    hideWork = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: work)
+  }
 
   var isBusy: Bool {
     if case .sending = state { return true }
@@ -120,6 +131,8 @@ struct TransferHUD: View {
           .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         case .sent:
           label("checkmark.circle.fill", String(localized: "Saved to Downloads"), tint: .green)
+        case .note(let symbol, let text):
+          label(symbol, text)
         case .failed(let name):
           label(
             "exclamationmark.circle.fill", String(localized: "Couldn't send \(name)"),

@@ -17,6 +17,7 @@
 		5E3282EFBF787D93A33F2E12 /* AudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1E75E3C78DC0ADCD88E343 /* AudioPlayer.swift */; };
 		71D1ABDB220C32481770B2C3 /* MirrorSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6424503747E1F4C560994DE9 /* MirrorSession.swift */; };
 		7489F3A4BB619EA855DB26A4 /* PixelMirrorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBBF8A78350EB0D1689A0F31 /* PixelMirrorApp.swift */; };
+		9A20436DC9E261E21D3FC12C /* ScreenRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23073DDBC865893800EEB7E1 /* ScreenRecorder.swift */; };
 		AB33E67AB34D3DA2F2E498FF /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7C26D47B9D9E3508BCEB83ED /* Localizable.xcstrings */; };
 		BD5EAFACDE8AD1B0CB8C9501 /* Showcase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 627E1CE0CB9EC2DB4127C5AA /* Showcase.swift */; };
 		C024BCCB5A0B611813B7DCF5 /* SettingsChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1BB8279B868E52343BCD76 /* SettingsChrome.swift */; };
@@ -36,6 +37,7 @@
 		0F1BB8279B868E52343BCD76 /* SettingsChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsChrome.swift; sourceTree = "<group>"; };
 		15186BD95E2825A38B52FD3C /* WhatsNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewView.swift; sourceTree = "<group>"; };
 		21CDAF79550A6433B558312C /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
+		23073DDBC865893800EEB7E1 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
 		3A1E75E3C78DC0ADCD88E343 /* AudioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayer.swift; sourceTree = "<group>"; };
 		50A1F5FF4F4BA231C71D9908 /* PixelMirror.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PixelMirror.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5C7B4C7822434C310145EBC2 /* PhoneFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneFiles.swift; sourceTree = "<group>"; };
@@ -110,6 +112,7 @@
 				5C7B4C7822434C310145EBC2 /* PhoneFiles.swift */,
 				EBBF8A78350EB0D1689A0F31 /* PixelMirrorApp.swift */,
 				21CDAF79550A6433B558312C /* Preferences.swift */,
+				23073DDBC865893800EEB7E1 /* ScreenRecorder.swift */,
 				0F1BB8279B868E52343BCD76 /* SettingsChrome.swift */,
 				627E1CE0CB9EC2DB4127C5AA /* Showcase.swift */,
 				65C997E9F17BB40B9FEC7DE0 /* Telemetry.swift */,
@@ -258,6 +261,7 @@
 				37ED7C307CF8BA1C868B86E4 /* PhoneFiles.swift in Sources */,
 				7489F3A4BB619EA855DB26A4 /* PixelMirrorApp.swift in Sources */,
 				C8E53C02A810B96A3C5B55E3 /* Preferences.swift in Sources */,
+				9A20436DC9E261E21D3FC12C /* ScreenRecorder.swift in Sources */,
 				C024BCCB5A0B611813B7DCF5 /* SettingsChrome.swift in Sources */,
 				BD5EAFACDE8AD1B0CB8C9501 /* Showcase.swift in Sources */,
 				F35639FFD284023BD6828965 /* Telemetry.swift in Sources */,

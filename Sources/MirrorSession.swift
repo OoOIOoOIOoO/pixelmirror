@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import CoreImage
 import CoreMedia
 import Foundation
 
@@ -11,6 +12,8 @@ protocol MirrorSessionDelegate: AnyObject {
   func sessionDidEnd(_ session: MirrorSession, error: String?)
   /// The phone refuses touch and keys from the computer (Xiaomi, OPPO and others need a switch).
   func sessionInputBlocked(_ session: MirrorSession)
+  /// A recording ended, by request or because the stream changed or stopped; nil if nothing was saved.
+  func session(_ session: MirrorSession, recordingFinished url: URL?)
 }
 
 /// Runs the scrcpy server on the phone and keeps its three streams going:
@@ -40,6 +43,7 @@ final class MirrorSession: @unchecked Sendable {
   private var serverLog = ""
   private var inputBlocked = false
   private var appDisplay: Int?
+  private var recorder: ScreenRecorder?
 
   init(
     transport: String, isUSB: Bool, renderer: AVSampleBufferDisplayLayer, app: AppLaunch? = nil
@@ -64,6 +68,49 @@ final class MirrorSession: @unchecked Sendable {
 
   func stop() {
     finish(error: nil)
+  }
+
+  // MARK: - Recording
+
+  var isRecording: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return recorder != nil
+  }
+
+  /// Records from the next key frame, which the phone sends at once on request.
+  func startRecording(to url: URL) throws {
+    let recorder = try ScreenRecorder(url: url, hasAudio: app == nil)
+    lock.lock()
+    self.recorder = recorder
+    lock.unlock()
+    control.resetVideo()
+  }
+
+  func stopRecording() {
+    lock.lock()
+    let recorder = self.recorder
+    self.recorder = nil
+    lock.unlock()
+    recorder?.finish { [weak self] url in
+      guard let self else { return }
+      MainActor.assumeIsolated { self.delegate?.session(self, recordingFinished: url) }
+    }
+  }
+
+  private var activeRecorder: ScreenRecorder? {
+    lock.lock()
+    defer { lock.unlock() }
+    return recorder
+  }
+
+  /// The frame on screen now, decoded, for a screenshot of an app's window.
+  var currentFrame: CGImage? {
+    guard #available(macOS 14.4, *),
+      let buffer = renderer.sampleBufferRenderer.displayedPixelBuffer()
+    else { return nil }
+    let image = CIImage(cvPixelBuffer: buffer)
+    return CIContext().createCGImage(image, from: image.extent)
   }
 
   // MARK: - Startup
@@ -198,6 +245,7 @@ final class MirrorSession: @unchecked Sendable {
     for socket in open { socket.close() }
     if let process, process.isRunning { process.terminate() }
     audio.stop()
+    stopRecording()
     if forwardPort != 0 {
       let port = forwardPort
       let transport = transport
@@ -234,11 +282,22 @@ final class MirrorSession: @unchecked Sendable {
       if flags & (1 << 62) != 0 {
         decoder.configure(with: packet)
         renderer.sampleBufferRenderer.flush()
+        if let recorder = activeRecorder, let format = decoder.format,
+          !recorder.configure(format)
+        {
+          stopRecording()
+        }
         continue
       }
       if let sample = decoder.sample(from: packet) {
         if renderer.sampleBufferRenderer.status == .failed { renderer.sampleBufferRenderer.flush() }
         renderer.sampleBufferRenderer.enqueue(sample)
+      }
+      if let recorder = activeRecorder {
+        let pts = CMTime(value: Int64(flags & 0x1FFF_FFFF_FFFF_FFFF), timescale: 1_000_000)
+        if let sample = decoder.sample(from: packet, pts: pts) {
+          recorder.appendVideo(sample, keyFrame: flags & (1 << 61) != 0)
+        }
       }
     }
     finish(error: nil)
@@ -253,6 +312,10 @@ final class MirrorSession: @unchecked Sendable {
       let length = Int(header.suffix(4).bigEndianUInt32)
       guard let packet = socket.read(length) else { break }
       audio.push(packet)
+      if let recorder = activeRecorder {
+        let pts = header.prefix(8).bigEndianUInt64 & 0x1FFF_FFFF_FFFF_FFFF
+        recorder.appendAudio(packet, pts: CMTime(value: Int64(pts), timescale: 1_000_000))
+      }
     }
   }
 }
@@ -261,7 +324,7 @@ final class MirrorSession: @unchecked Sendable {
 
 /// Turns MediaCodec's Annex B packets into sample buffers the display layer decodes in hardware.
 final class H264Packetizer {
-  private var format: CMVideoFormatDescription?
+  private(set) var format: CMVideoFormatDescription?
 
   func configure(with packet: Data) {
     let units = Self.units(in: packet)
@@ -284,7 +347,8 @@ final class H264Packetizer {
     if let description { format = description }
   }
 
-  func sample(from packet: Data) -> CMSampleBuffer? {
+  /// Without a time the frame is shown at once; with one it is for the recording.
+  func sample(from packet: Data, pts: CMTime? = nil) -> CMSampleBuffer? {
     guard let format else { return nil }
     var avcc = Data(capacity: packet.count + 16)
     for unit in Self.units(in: packet) {
@@ -311,13 +375,16 @@ final class H264Packetizer {
     }
     var sample: CMSampleBuffer?
     var size = avcc.count
+    var timing = CMSampleTimingInfo(
+      duration: .invalid, presentationTimeStamp: pts ?? .invalid, decodeTimeStamp: .invalid)
     guard
       CMSampleBufferCreateReady(
         allocator: kCFAllocatorDefault, dataBuffer: block, formatDescription: format,
-        sampleCount: 1, sampleTimingEntryCount: 0, sampleTimingArray: nil,
+        sampleCount: 1, sampleTimingEntryCount: 1, sampleTimingArray: &timing,
         sampleSizeEntryCount: 1, sampleSizeArray: &size, sampleBufferOut: &sample) == noErr,
       let sample
     else { return nil }
+    if pts != nil { return sample }
     if let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: true),
       CFArrayGetCount(attachments) > 0
     {

@@ -77,6 +77,11 @@ struct PhoneCommands: Commands {
       .keyboardShortcut("p", modifiers: [.command, .shift])
       .disabled(hub.phones.isEmpty)
       Divider()
+      Button("Take Screenshot") { MirrorManager.shared.keyController?.takeScreenshot() }
+        .keyboardShortcut("s", modifiers: [.command, .option])
+      Button("Record Screen") { MirrorManager.shared.keyController?.toggleRecording() }
+        .keyboardShortcut("r", modifiers: [.command, .option])
+      Divider()
       Button("Back") { MirrorManager.shared.keyController?.back() }
         .keyboardShortcut("[")
       Button("Home") { MirrorManager.shared.keyController?.home() }
