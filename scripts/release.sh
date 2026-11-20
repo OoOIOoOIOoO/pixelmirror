@@ -16,21 +16,22 @@ feed="build/feed"
 rm -rf "$archive" "$submitted" "$notarized" "$feed" dist
 mkdir -p build dist
 
-xcodebuild archive -quiet \
+# With the camera, Xcode signs through its own Developer ID profile.
+camera=""
+signing="  <key>signingStyle</key>
+  <string>manual</string>
+  <key>signingCertificate</key>
+  <string>Developer ID Application</string>"
+if [ -f Config/Camera.local.xcconfig ]; then
+  camera=(CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development")
+  signing="  <key>signingStyle</key>
+  <string>automatic</string>"
+fi
+
+xcodebuild archive -quiet -allowProvisioningUpdates \
   -project "$app.xcodeproj" -scheme "$app" -configuration Release \
   -archivePath "$archive" -destination 'generic/platform=macOS' \
-  -clonedSourcePackagesDirPath "$packages"
-
-# The camera's profile, when scripts/camera-signing.sh found one.
-profiles=""
-camera_profile="$(awk -F' = ' '/PROVISIONING_PROFILE_SPECIFIER/ { print $2 }' Config/Camera.local.xcconfig 2>/dev/null || true)"
-if [ -n "$camera_profile" ]; then
-  profiles="  <key>provisioningProfiles</key>
-  <dict>
-    <key>com.reffwu.pixelmirror</key>
-    <string>${camera_profile}</string>
-  </dict>"
-fi
+  -clonedSourcePackagesDirPath "$packages" ${camera:+"${camera[@]}"}
 
 cat > "$options" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -41,13 +42,9 @@ cat > "$options" <<PLIST
   <string>developer-id</string>
   <key>destination</key>
   <string>upload</string>
-  <key>signingStyle</key>
-  <string>manual</string>
-  <key>signingCertificate</key>
-  <string>Developer ID Application</string>
+${signing}
   <key>teamID</key>
   <string>${team}</string>
-${profiles}
 </dict>
 </plist>
 PLIST
