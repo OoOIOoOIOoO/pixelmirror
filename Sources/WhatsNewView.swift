@@ -14,18 +14,17 @@ struct WhatsNewView: View {
 
   var features: [WhatsNewFeature] = [
     WhatsNewFeature(
-      symbol: "lock.open.fill", tint: .blue,
-      title: String(localized: "Unlock from the Mac"),
+      symbol: "touchid", tint: .pink,
+      title: String(localized: "Unlock with Touch ID"),
       subtitle: String(
-        localized:
-          "When the phone is locked, Computer Mode shows its lock screen first, then opens the desktop."
-      )),
+        localized: "Save the phone's PIN once, and your fingerprint on the Mac opens the phone.")),
     WhatsNewFeature(
-      symbol: "lock.iphone", tint: .green,
-      title: String(localized: "Locks when you are done"),
+      symbol: "keyboard", tint: .blue,
+      title: String(localized: "Type the PIN on the Mac"),
       subtitle: String(
         localized:
-          "Stop mirroring with the phone's screen off, and it locks, as if laid face down.")),
+          "The phone hides its PIN screen from the mirror, so a PIN box appears over it. Type, then press Return."
+      )),
   ]
 
   var body: some View {
