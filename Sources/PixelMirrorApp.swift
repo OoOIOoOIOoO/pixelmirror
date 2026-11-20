@@ -82,6 +82,8 @@ struct PhoneCommands: Commands {
         .keyboardShortcut("s", modifiers: [.command, .option])
       Button("Record Screen") { MirrorManager.shared.keyController?.toggleRecording() }
         .keyboardShortcut("r", modifiers: [.command, .option])
+      Button("Edit Game Keys") { MirrorManager.shared.keyController?.editKeyMap() }
+        .keyboardShortcut("k", modifiers: [.command, .option])
       Divider()
       Button("Back") { MirrorManager.shared.keyController?.back() }
         .keyboardShortcut("[")

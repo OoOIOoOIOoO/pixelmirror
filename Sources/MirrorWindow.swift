@@ -87,6 +87,11 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   private let notice = NSHostingView(rootView: InputBlockedNotice(maker: "", close: {}))
   private var session: MirrorSession?
   private let files = FileSender()
+  private let keyMapper = KeyMapper()
+  private let keyMapBar = NSHostingView(rootView: AnyView(EmptyView()))
+  /// The app whose keys are in use: this window's app, or the one in front on the phone.
+  private var mapPackage: String?
+  private var foregroundTimer: Timer?
   private lazy var transferHUD = NSHostingView(
     rootView: TransferHUD(sender: files, dropping: false))
   private var videoSize = CGSize.zero
@@ -126,7 +131,16 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     container.addSubview(notice)
     transferHUD.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(transferHUD)
+    keyMapBar.translatesAutoresizingMaskIntoConstraints = false
+    keyMapBar.isHidden = true
+    container.addSubview(keyMapBar)
     NSLayoutConstraint.activate([
+      keyMapBar.leadingAnchor.constraint(
+        greaterThanOrEqualTo: container.leadingAnchor, constant: 12),
+      keyMapBar.trailingAnchor.constraint(
+        lessThanOrEqualTo: container.trailingAnchor, constant: -12),
+      keyMapBar.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+      keyMapBar.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16),
       transferHUD.centerXAnchor.constraint(equalTo: container.centerXAnchor),
       transferHUD.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -24),
       mirrorView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -146,6 +160,10 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       self.transferHUD.rootView = TransferHUD(sender: self.files, dropping: dropping)
     }
     mirrorView.onDropFiles = { [weak self] urls in self?.send(urls) }
+    mirrorView.keyMapper = keyMapper
+    mirrorView.keyMapView.onChange = { [weak self] map in self?.updateKeyMapBar(map) }
+    mirrorView.keyMapView.onDone = { [weak self] in self?.finishEditingKeys() }
+    if let app { useKeys(of: app.package) }
     updateTitle()
     if !window.setFrameUsingName(frameName) { window.center() }
     if app != nil { window.contentMinSize = NSSize(width: 280, height: 360) }
@@ -166,6 +184,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       app: app.map { MirrorSession.AppLaunch(package: $0.package, size: displaySize, dpi: dpi) })
     session.delegate = self
     mirrorView.control = session.input
+    keyMapper.control = session.input
     self.session = session
     session.start()
   }
@@ -207,6 +226,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     let first = videoSize == .zero
     videoSize = size
     mirrorView.videoSize = size
+    keyMapper.videoSize = size
     // An app's display follows its window, not the other way round.
     if app == nil { fit(to: size, resize: first || rotated) }
   }
@@ -305,6 +325,115 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   }
 
   func windowDidBecomeKey(_ notification: Notification) {
+    if mirrorView.keyMapView.editing {
+      window?.makeFirstResponder(mirrorView.keyMapView)
+    } else {
+      window?.makeFirstResponder(mirrorView)
+    }
+    // The phone's own screen shows whichever app is in front, so follow it while keys are saved.
+    guard app == nil else { return }
+    followForegroundApp()
+    foregroundTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+      Task { @MainActor in self?.followForegroundApp() }
+    }
+  }
+
+  func windowDidResignKey(_ notification: Notification) {
+    keyMapper.releaseAll()
+    foregroundTimer?.invalidate()
+    foregroundTimer = nil
+  }
+
+  // MARK: - Key mapping
+
+  private func useKeys(of package: String?) {
+    mapPackage = package
+    let map = package.flatMap(KeyMap.load) ?? KeyMap()
+    keyMapper.releaseAll()
+    keyMapper.map = map
+    mirrorView.keyMapView.map = map
+  }
+
+  private func followForegroundApp(then done: (() -> Void)? = nil) {
+    guard app == nil, KeyMap.anySaved || done != nil, !mirrorView.keyMapView.editing else {
+      done?()
+      return
+    }
+    let transport = phone.transport
+    DispatchQueue.global().async {
+      let package = Self.foregroundPackage(transport)
+      DispatchQueue.main.async {
+        if package != self.mapPackage { self.useKeys(of: package) }
+        done?()
+      }
+    }
+  }
+
+  /// The app in front on the phone's own screen.
+  nonisolated private static func foregroundPackage(_ transport: String) -> String? {
+    let output = ADB.shell(
+      transport, "dumpsys activity activities | grep -E '^Display #|ResumedActivity:'")
+    var onPhoneScreen = false
+    for line in output.split(separator: "\n") {
+      if line.hasPrefix("Display #") {
+        onPhoneScreen = line.hasPrefix("Display #0 ")
+      } else if onPhoneScreen,
+        let record = line.split(separator: " ").first(where: { $0.contains("/") })
+      {
+        return String(record.split(separator: "/")[0])
+      }
+    }
+    return nil
+  }
+
+  var isEditingKeys: Bool { mirrorView.keyMapView.editing }
+
+  /// Shows the keys over the phone so they can be placed, moved and removed.
+  func editKeyMap() {
+    if isEditingKeys { return finishEditingKeys() }
+    guard session != nil, videoSize != .zero else { return }
+    followForegroundApp { [weak self] in
+      guard let self else { return }
+      guard self.mapPackage != nil else {
+        self.files.note("exclamationmark.circle.fill", String(localized: "Open a game first"))
+        return
+      }
+      self.keyMapper.releaseAll()
+      self.mirrorView.keyMapView.editing = true
+      self.updateKeyMapBar(self.mirrorView.keyMapView.map)
+      self.keyMapBar.isHidden = false
+      self.window?.makeFirstResponder(self.mirrorView.keyMapView)
+    }
+  }
+
+  private func updateKeyMapBar(_ map: KeyMap) {
+    let view = mirrorView.keyMapView
+    keyMapBar.rootView = AnyView(
+      KeyMapBar(
+        map: map,
+        setJoystick: { [weak self] on in
+          view.map.joystick = on ? KeyMap.Joystick(x: 0.2, y: 0.72, radius: 0.12) : nil
+          self?.updateKeyMapBar(view.map)
+        },
+        setEnabled: { [weak self] on in
+          view.map.enabled = on
+          self?.updateKeyMapBar(view.map)
+        },
+        clear: { [weak self] in
+          view.map.taps = []
+          view.map.joystick = nil
+          self?.updateKeyMapBar(view.map)
+        },
+        done: { [weak self] in self?.finishEditingKeys() }))
+  }
+
+  private func finishEditingKeys() {
+    let map = mirrorView.keyMapView.finish()
+    if let mapPackage { map.save(mapPackage) }
+    keyMapper.map = map
+    mirrorView.keyMapView.map = map
+    mirrorView.keyMapView.editing = false
+    keyMapBar.isHidden = true
     window?.makeFirstResponder(mirrorView)
   }
 
@@ -623,7 +752,9 @@ private struct MirrorOverlay: View {
 final class MirrorView: NSView, NSTextInputClient {
   var displayLayer: AVSampleBufferDisplayLayer { layer as! AVSampleBufferDisplayLayer }
   var control: ControlChannel?
-  var videoSize = CGSize.zero
+  var videoSize = CGSize.zero {
+    didSet { needsLayout = true }
+  }
 
   private var marked = NSMutableAttributedString()
   private var scrollFinger: CGPoint?
@@ -637,6 +768,7 @@ final class MirrorView: NSView, NSTextInputClient {
     wantsLayer = true
     layerContentsRedrawPolicy = .never
     registerForDraggedTypes([.fileURL])
+    addSubview(keyMapView)
   }
 
   required init?(coder: NSCoder) { fatalError() }
@@ -677,7 +809,16 @@ final class MirrorView: NSView, NSTextInputClient {
 
   // MARK: Coordinates
 
-  private var videoRect: CGRect {
+  var keyMapper: KeyMapper?
+  let keyMapView = KeyMapView()
+
+  override func layout() {
+    super.layout()
+    keyMapView.frame = bounds
+    keyMapView.videoRect = videoRect
+  }
+
+  var videoRect: CGRect {
     guard videoSize.width > 0, bounds.width > 0 else { return bounds }
     let scale = min(bounds.width / videoSize.width, bounds.height / videoSize.height)
     let size = CGSize(width: videoSize.width * scale, height: videoSize.height * scale)
@@ -823,9 +964,44 @@ final class MirrorView: NSView, NSTextInputClient {
     7: 52, 16: 53, 6: 54,
   ]
 
+  /// Mac text editing keys, as the phone knows them.
+  private func macEditingKey(_ event: NSEvent, _ flags: NSEvent.ModifierFlags) -> Bool {
+    guard let control else { return false }
+    let shift = flags.contains(.shift) ? ControlChannel.Meta.shift : 0
+    let ctrl = ControlChannel.Meta.ctrl
+    func press(_ code: Int32, _ meta: Int32) {
+      control.key(code, .down, meta: meta)
+      control.key(code, .up, meta: meta)
+    }
+    if flags.contains(.command) {
+      switch event.keyCode {
+      case 123: press(122, shift)  // ⌘← to the start of the line
+      case 124: press(123, shift)  // ⌘→ to the end
+      case 51:  // ⌘⌫ deletes to the start of the line
+        press(122, ControlChannel.Meta.shift)
+        press(67, 0)
+      default: return false
+      }
+      return true
+    }
+    if flags.contains(.option) {
+      switch event.keyCode {
+      case 123: press(21, ctrl | shift)  // ⌥← a word back
+      case 124: press(22, ctrl | shift)  // ⌥→ a word on
+      case 51: press(67, ctrl)  // ⌥⌫ deletes a word
+      case 117: press(112, ctrl)  // ⌥⌦ deletes the next word
+      default: return false
+      }
+      return true
+    }
+    return false
+  }
+
   override func keyDown(with event: NSEvent) {
     guard let control else { return }
+    if keyMapper?.keyDown(event) == true { return }
     let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    if !hasMarkedText(), macEditingKey(event, flags) { return }
     if flags.contains(.command) {
       super.keyDown(with: event)
       return
@@ -847,6 +1023,7 @@ final class MirrorView: NSView, NSTextInputClient {
   }
 
   override func keyUp(with event: NSEvent) {
+    if keyMapper?.keyUp(event) == true { return }
     if let code = heldKeys.removeValue(forKey: event.keyCode) {
       control?.key(code, .up)
     }
@@ -869,6 +1046,12 @@ final class MirrorView: NSView, NSTextInputClient {
   @objc func undo(_ sender: Any?) {
     control?.key(54, .down, meta: ControlChannel.Meta.ctrl)
     control?.key(54, .up, meta: ControlChannel.Meta.ctrl)
+  }
+
+  @objc func redo(_ sender: Any?) {
+    let meta = ControlChannel.Meta.ctrl | ControlChannel.Meta.shift
+    control?.key(54, .down, meta: meta)
+    control?.key(54, .up, meta: meta)
   }
 
   // MARK: Text input (so Chinese, Japanese and other input methods work)

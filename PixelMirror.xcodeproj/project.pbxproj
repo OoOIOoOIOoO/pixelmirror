@@ -17,6 +17,7 @@
 		5E3282EFBF787D93A33F2E12 /* AudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1E75E3C78DC0ADCD88E343 /* AudioPlayer.swift */; };
 		71D1ABDB220C32481770B2C3 /* MirrorSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6424503747E1F4C560994DE9 /* MirrorSession.swift */; };
 		7489F3A4BB619EA855DB26A4 /* PixelMirrorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBBF8A78350EB0D1689A0F31 /* PixelMirrorApp.swift */; };
+		793B4BD706539C48C3F78CAA /* KeyMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = D14120A8302D92C6C556FB87 /* KeyMapping.swift */; };
 		9A20436DC9E261E21D3FC12C /* ScreenRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23073DDBC865893800EEB7E1 /* ScreenRecorder.swift */; };
 		AB33E67AB34D3DA2F2E498FF /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7C26D47B9D9E3508BCEB83ED /* Localizable.xcstrings */; };
 		BD5EAFACDE8AD1B0CB8C9501 /* Showcase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 627E1CE0CB9EC2DB4127C5AA /* Showcase.swift */; };
@@ -51,6 +52,7 @@
 		AF00964A122CA3B95C78A473 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C674CA0EBC485EFB2A7CCE34 /* Helpers */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Helpers; path = Vendor/Helpers; sourceTree = SOURCE_ROOT; };
 		C9F5E49BD150B8203FEA5A68 /* MacNetwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacNetwork.swift; sourceTree = "<group>"; };
+		D14120A8302D92C6C556FB87 /* KeyMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyMapping.swift; sourceTree = "<group>"; };
 		DA5FFA6D4C8346EA2A3FD53D /* AppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntents.swift; sourceTree = "<group>"; };
 		DC24B5A19E325C508FB5E2B4 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		E4DDF581497F344FD17345A7 /* DeviceHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceHub.swift; sourceTree = "<group>"; };
@@ -106,6 +108,7 @@
 				3A1E75E3C78DC0ADCD88E343 /* AudioPlayer.swift */,
 				F565F0B919AA44A067F4F94E /* ControlChannel.swift */,
 				E4DDF581497F344FD17345A7 /* DeviceHub.swift */,
+				D14120A8302D92C6C556FB87 /* KeyMapping.swift */,
 				C9F5E49BD150B8203FEA5A68 /* MacNetwork.swift */,
 				DC24B5A19E325C508FB5E2B4 /* MainView.swift */,
 				6424503747E1F4C560994DE9 /* MirrorSession.swift */,
@@ -256,6 +259,7 @@
 				5E3282EFBF787D93A33F2E12 /* AudioPlayer.swift in Sources */,
 				F1B383ADF66DCA594D9C90DC /* ControlChannel.swift in Sources */,
 				D4825E39B333F7822E5177C6 /* DeviceHub.swift in Sources */,
+				793B4BD706539C48C3F78CAA /* KeyMapping.swift in Sources */,
 				EAC424CF17BDF45B70C12814 /* MacNetwork.swift in Sources */,
 				FCE9095F852A90E83248F79E /* MainView.swift in Sources */,
 				71D1ABDB220C32481770B2C3 /* MirrorSession.swift in Sources */,
