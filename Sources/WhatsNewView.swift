@@ -12,8 +12,21 @@ struct WhatsNewFeature: Identifiable {
 struct WhatsNewView: View {
   var onContinue: () -> Void
 
-  // 默认由子类或 App 自行配置特性列表
-  var features: [WhatsNewFeature] = []
+  var features: [WhatsNewFeature] = [
+    WhatsNewFeature(
+      symbol: "lock.open.fill", tint: .blue,
+      title: String(localized: "Unlock from the Mac"),
+      subtitle: String(
+        localized:
+          "When the phone is locked, Computer Mode shows its lock screen first, then opens the desktop."
+      )),
+    WhatsNewFeature(
+      symbol: "lock.iphone", tint: .green,
+      title: String(localized: "Locks when you are done"),
+      subtitle: String(
+        localized:
+          "Stop mirroring with the phone's screen off, and it locks, as if laid face down.")),
+  ]
 
   var body: some View {
     VStack(spacing: 0) {

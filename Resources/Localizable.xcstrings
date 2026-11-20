@@ -3776,6 +3776,100 @@
         }
       }
     },
+    "Locks when you are done" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُقفل عند الانتهاء"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sperrt sich, wenn du fertig bist"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se bloquea al terminar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se verrouille quand vous avez fini"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si blocca quando hai finito"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終わったらロック"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "끝나면 잠금"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vergrendelt als je klaar bent"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blokuje się po zakończeniu"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloqueia quando você termina"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Блокируется, когда вы закончили"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İşiniz bitince kilitlenir"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tự khóa khi bạn dùng xong"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用完自动锁屏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用完自動鎖定"
+          }
+        }
+      }
+    },
     "Looking for %@…" : {
       "localizations" : {
         "ar" : {
@@ -8952,6 +9046,100 @@
         }
       }
     },
+    "Stop mirroring with the phone's screen off, and it locks, as if laid face down." : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أوقف النسخ وشاشة الهاتف مطفأة، فيُقفل كأنه مقلوب على وجهه."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beendest du die Spiegelung bei ausgeschaltetem Display, sperrt sich das Handy, als läge es mit dem Display nach unten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si dejas de duplicar con la pantalla apagada, el teléfono se bloquea, como si lo dejaras boca abajo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrêtez la recopie écran éteint, et le téléphone se verrouille, comme posé face contre la table."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interrompi il mirroring con lo schermo spento e il telefono si blocca, come se fosse a faccia in giù."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面オフのままミラーリングを終えると、伏せて置いたようにスマホがロックされます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "화면이 꺼진 채로 미러링을 끝내면, 엎어 둔 것처럼 휴대전화가 잠깁니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop met spiegelen terwijl het scherm uit is, en de telefoon vergrendelt, alsof hij omgekeerd ligt."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zakończ dublowanie przy wyłączonym ekranie, a telefon się zablokuje, jakby leżał ekranem w dół."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pare o espelhamento com a tela desligada e o telefone bloqueia, como se estivesse virado para baixo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершите трансляцию с выключенным экраном, и телефон заблокируется, будто лежит экраном вниз."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ekran kapalıyken yansıtmayı durdurun, telefon yüzüstü bırakılmış gibi kilitlenir."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dừng phản chiếu khi màn hình điện thoại đang tắt, máy sẽ tự khóa như khi úp xuống bàn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在手机屏幕关闭时停止镜像，手机会锁上，就像把它扣在桌上。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在手機螢幕關閉時停止鏡像，手機會鎖定，就像把它扣在桌上。"
+          }
+        }
+      }
+    },
     "Stop Recording" : {
       "localizations" : {
         "ar" : {
@@ -10080,6 +10268,100 @@
         }
       }
     },
+    "Unlock from the Mac" : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "افتح القفل من Mac"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vom Mac entsperren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea desde el Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez depuis le Mac"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sblocca dal Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac からロック解除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac에서 잠금 해제"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontgrendel vanaf de Mac"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odblokuj z Maca"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloqueie pelo Mac"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разблокировка с Mac"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac'ten kilidi açın"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mở khóa từ Mac"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Mac 上解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Mac 上解鎖"
+          }
+        }
+      }
+    },
     "Unlock the phone to open its desktop" : {
       "localizations" : {
         "ar" : {
@@ -11110,6 +11392,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pixel 鏡像 新功能"
+          }
+        }
+      }
+    },
+    "When the phone is locked, Computer Mode shows its lock screen first, then opens the desktop." : {
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "عندما يكون الهاتف مقفلًا، يعرض وضع الكمبيوتر شاشة القفل أولًا ثم يفتح سطح المكتب."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ist das Handy gesperrt, zeigt der Computermodus zuerst den Sperrbildschirm und öffnet dann den Schreibtisch."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si el teléfono está bloqueado, el modo ordenador muestra primero la pantalla de bloqueo y luego abre el escritorio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si le téléphone est verrouillé, le mode ordinateur affiche d’abord l’écran de verrouillage, puis ouvre le bureau."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se il telefono è bloccato, la modalità computer mostra prima la schermata di blocco, poi apre la scrivania."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スマホがロック中なら、コンピュータモードはまずロック画面を表示し、解除後にデスクトップを開きます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "휴대전화가 잠겨 있으면 컴퓨터 모드가 먼저 잠금 화면을 보여 주고, 해제하면 데스크톱을 엽니다."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Is de telefoon vergrendeld, dan toont de computermodus eerst het vergrendelscherm en opent daarna het bureaublad."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gdy telefon jest zablokowany, tryb komputera najpierw pokazuje ekran blokady, a potem otwiera pulpit."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se o telefone estiver bloqueado, o modo computador mostra primeiro a tela de bloqueio e depois abre a área de trabalho."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если телефон заблокирован, режим компьютера сначала показывает экран блокировки, а затем открывает рабочий стол."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telefon kilitliyse Bilgisayar Modu önce kilit ekranını gösterir, ardından masaüstünü açar."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Khi điện thoại bị khóa, Chế độ máy tính sẽ hiện màn hình khóa trước rồi mới mở màn hình nền."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手机锁着时，电脑模式会先显示锁屏，解锁后再打开桌面。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手機鎖著時，電腦模式會先顯示鎖定畫面，解鎖後再打開桌面。"
           }
         }
       }
