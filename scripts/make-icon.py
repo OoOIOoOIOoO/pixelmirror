@@ -80,8 +80,9 @@ def vertical_gradient(top, bottom, start, end):
 def face():
     """Two phones, one behind the other: the real one and its frosted-glass twin on the Mac."""
     canvas = vertical_gradient(BACKGROUND[0], BACKGROUND[1], INNER[1], INNER[3]).convert("RGBA")
-    back = (625, 420, 1217, 1420)
-    front = (830, 628, 1422, 1628)
+    # Same size, offset by 34% of the width both ways, together centred: as in iPhone Mirroring.
+    back = (628, 424, 1220, 1424)
+    front = (829, 625, 1421, 1625)
     radius = 123  # iPhone Mirroring: r 60 on a 288 wide phone at 1024
 
     # Soft shadows lift both phones off the background.
