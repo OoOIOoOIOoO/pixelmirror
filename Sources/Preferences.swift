@@ -106,6 +106,8 @@ private struct MenuBarNotificationPreferences: View {
   @ObservedObject private var hub = DeviceHub.shared
   @ObservedObject private var phoneApps = PhoneApps.shared
   @State private var expanded = false
+  private let appRowHeight: CGFloat = 36
+  private let visibleAppRows = 8
 
   var body: some View {
     SettingsRow(
@@ -116,15 +118,16 @@ private struct MenuBarNotificationPreferences: View {
         .labelsHidden()
     }
     if notifications.enabled {
-      DisclosureGroup("Notification apps", isExpanded: $expanded) {
+      DisclosureGroup(isExpanded: $expanded) {
         let apps = notifications.apps(from: hub.phones.flatMap { phoneApps.apps(on: $0) })
         if apps.isEmpty {
           Text("No phone apps available")
             .foregroundStyle(.secondary)
-            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
         } else {
           ScrollView {
-            VStack(alignment: .leading, spacing: 7) {
+            LazyVStack(alignment: .leading, spacing: 0) {
               ForEach(apps) { app in
                 Toggle(
                   isOn: Binding(
@@ -132,21 +135,40 @@ private struct MenuBarNotificationPreferences: View {
                     set: { notifications.setApp(app, enabled: $0) })
                 ) {
                   Text(verbatim: app.label)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .toggleStyle(.switch)
-                .font(.system(size: 12))
+                .controlSize(.regular)
+                .font(.system(size: 13))
+                .padding(.horizontal, 12)
+                .frame(height: appRowHeight)
+                .overlay(alignment: .bottom) {
+                  if app.id != apps.last?.id {
+                    Divider().opacity(0.5).padding(.horizontal, 12)
+                  }
+                }
               }
             }
-            .padding(.vertical, 7)
-            .padding(.trailing, 6)
+            .frame(maxWidth: .infinity)
           }
-          .frame(height: min(180, CGFloat(apps.count) * 26 + 14))
+          .frame(maxWidth: .infinity)
+          .frame(height: CGFloat(min(visibleAppRows, apps.count)) * appRowHeight)
+          .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+          .clipShape(RoundedRectangle(cornerRadius: 8))
+          .overlay {
+            RoundedRectangle(cornerRadius: 8)
+              .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+          }
+          .padding(.top, 7)
         }
+      } label: {
+        Text("Notification apps")
+          .font(.system(size: 13, weight: .medium))
+          .padding(.vertical, 4)
       }
-      .controlSize(.small)
-      .padding(.leading, SettingsMetrics.dividerInset)
-      .padding(.trailing, SettingsMetrics.rowPaddingH)
-      .padding(.bottom, 10)
+      .padding(.horizontal, SettingsMetrics.rowPaddingH)
+      .padding(.bottom, 12)
       .onAppear(perform: refreshApps)
       .onChange(of: expanded) { _, _ in refreshApps() }
       .onChange(of: hub.phones) { _, _ in refreshApps() }
