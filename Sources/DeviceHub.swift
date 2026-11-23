@@ -53,6 +53,7 @@ final class DeviceHub: ObservableObject {
   private var scanning = false
   private var typedCode: String?
   private var pendingSwitches: [Phone] = []
+  private var readyUSBMirrors: Set<String> = []
   private var readyIDs: Set<String> = []
   private var searchingSince = Date()
 
@@ -91,6 +92,11 @@ final class DeviceHub: ObservableObject {
     scan()
   }
 
+  func wiredMirrorReady(transport: String) {
+    guard phones.contains(where: { $0.isUSB && $0.transport == transport }) else { return }
+    readyUSBMirrors.insert(transport)
+  }
+
   // MARK: - Scanning
 
   private func scan() {
@@ -100,7 +106,8 @@ final class DeviceHub: ObservableObject {
       qr: qr, typedCode: typedCode, switches: pendingSwitches,
       lastAddresses: Dictionary(
         known.compactMap { phone in phone.address.map { (phone.id, $0) } },
-        uniquingKeysWith: { first, _ in first }))
+        uniquingKeysWith: { first, _ in first }),
+      readyUSBMirrors: readyUSBMirrors)
     pendingSwitches.removeAll()
     queue.async { [worker] in
       let result = worker.scan(request) { started in
@@ -112,6 +119,7 @@ final class DeviceHub: ObservableObject {
 
   private func apply(_ result: HubWorker.Result, request: HubWorker.Request) {
     scanning = false
+    readyUSBMirrors.formIntersection(result.phones.filter(\.isUSB).map(\.transport))
     if let paired = result.paired {
       if request.typedCode != nil, request.typedCode == typedCode { typedCode = nil }
       pairing = paired ? .paired : .failed
@@ -168,6 +176,7 @@ final class HubWorker: @unchecked Sendable {
     var typedCode: String?
     var switches: [Phone]
     var lastAddresses: [String: String]  // known phone id → its last Wi-Fi address
+    var readyUSBMirrors: Set<String> = []
   }
 
   struct Result {
@@ -187,13 +196,41 @@ final class HubWorker: @unchecked Sendable {
     var maker: String
   }
 
+  private struct RetryWindow {
+    let started: TimeInterval
+    var nextAttempt: TimeInterval?
+
+    mutating func takeAttempt(at now: TimeInterval, rediscovered: Bool) -> Bool {
+      let elapsed = now - started
+      guard rediscovered || (elapsed < 300 && now >= (nextAttempt ?? started)) else { return false }
+      nextAttempt = now + (elapsed < 30 ? 5 : 15)
+      return true
+    }
+  }
+
+  private let uptime: () -> TimeInterval
+  private let preferences: UserDefaults
   private var identities: [String: Identity] = [:]
-  private var lastAttempt: [String: Date] = [:]
+  private var lastAttempt: [String: TimeInterval] = [:]
+  private var retries: [String: RetryWindow] = [:]
+  private var seenWirelessServices: Set<ADB.Service> = []
   private var failures: [String: ADB.Connection] = [:]  // announced address → why it failed
   private var preferWiFi: Set<String> = []
+  private var preferUSB: Set<String>
+  private var triedUSBRecovery: Set<String> = []
+  private var failedUSBRecovery: Set<String> = []
   private var directAddresses: [String: String] = [:]
   private var enabledTCP: Set<String> = []
   private var started = false
+
+  init(
+    preferences: UserDefaults = .standard,
+    uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+  ) {
+    self.preferences = preferences
+    self.uptime = uptime
+    preferUSB = Set(preferences.stringArray(forKey: "preferredUSBPhones") ?? [])
+  }
 
   func scan(_ request: Request, pairingStarted: (Bool) -> Void) -> Result {
     if !started {
@@ -222,55 +259,73 @@ final class HubWorker: @unchecked Sendable {
       for device in stale { ADB.disconnect(device.serial) }
       devices = ADB.devices()
     }
-    let attachedIDs = Set(devices.compactMap { identities[$0.serial]?.id ?? impliedID(of: $0) })
+    learnIdentities(devices)
+    let authorized = devices.filter { $0.state == "device" }
+    let wiredIDs = Set(authorized.filter(\.isUSB).compactMap { identities[$0.serial]?.id })
+    let wirelessIDs = Set(authorized.filter { !$0.isUSB }.compactMap { identities[$0.serial]?.id })
+    let attachedIDs = wiredIDs.union(wirelessIDs)
+    for id in wirelessIDs { retries.removeValue(forKey: id) }
     let attachedSerials = Set(devices.map(\.serial))
     var connected = false
     let announced = services.filter { $0.type.hasPrefix("_adb-tls-connect") }
+    let discovered = Set(announced).subtracting(seenWirelessServices)
+    seenWirelessServices = Set(announced)
+    let cachedWiFiIDs = Set(request.lastAddresses.keys).union(directAddresses.keys)
+    for id in preferWiFi.union(cachedWiFiIDs)
+    where !wirelessIDs.contains(id) && !preferUSB.contains(id) {
+      if retries[id] == nil { retries[id] = RetryWindow(started: uptime()) }
+    }
     failures = failures.filter { address, _ in announced.contains { $0.address == address } }
     for service in announced {
       if attachedSerials.contains(service.address) { continue }
-      if let id = ADB.serial(fromServiceName: service.name), attachedIDs.contains(id) { continue }
-      if let last = lastAttempt[service.address], Date().timeIntervalSince(last) < 4 { continue }
-      lastAttempt[service.address] = Date()
+      if let id = ADB.serial(fromServiceName: service.name) {
+        guard !attachedIDs.contains(id), !preferUSB.contains(id),
+          takeRetry(for: id, rediscovered: discovered.contains(service))
+        else { continue }
+      } else {
+        let now = uptime()
+        if let last = lastAttempt[service.address], now - last < 4 { continue }
+        lastAttempt[service.address] = now
+      }
       let outcome = ADB.connect(service.address)
       if outcome == .connected { connected = true }
       failures[service.address] = outcome == .connected ? nil : outcome
     }
-    // A known phone that has gone quiet on the network may still be at its last address.
-    for (id, address) in request.lastAddresses where !attachedIDs.contains(id) {
-      if attachedSerials.contains(address) || announced.contains(where: { $0.address == address }) {
-        continue
+    for id in cachedWiFiIDs where !attachedIDs.contains(id) && !preferUSB.contains(id) {
+      let direct = directAddresses[id]
+      let remembered = request.lastAddresses[id]
+      let addresses = [direct, remembered == direct ? nil : remembered].compactMap { $0 }.filter { address in
+        !attachedSerials.contains(address) && !announced.contains { $0.address == address }
       }
-      if let last = lastAttempt[address], Date().timeIntervalSince(last) < 10 { continue }
-      lastAttempt[address] = Date()
-      if ADB.connect(address) == .connected { connected = true }
-    }
-    for (id, address) in directAddresses where preferWiFi.contains(id) {
-      guard !attachedSerials.contains(address) else { continue }
-      if let last = lastAttempt[address], Date().timeIntervalSince(last) < 4 { continue }
-      lastAttempt[address] = Date()
-      if connect(address, to: id) { connected = true }
+      if !addresses.isEmpty, takeRetry(for: id), addresses.contains(where: { connect($0, to: id) }) {
+        connected = true
+      }
     }
     result.unpaired = failures.values.contains(.needsPairing)
     result.unreachable = failures.values.contains(.unreachable)
-    if connected || result.paired == true { devices = ADB.devices() }
-
-    // Learn who each attachment is, once per attachment.
-    let present = Set(devices.map(\.serial))
-    identities = identities.filter { present.contains($0.key) }
-    for device in devices where device.state == "device" && identities[device.serial] == nil {
-      identities[device.serial] = identify(device)
+    if connected || result.paired == true {
+      devices = ADB.devices()
+      learnIdentities(devices)
+    }
+    if recoverWireless(after: request, devices: devices, services: announced) {
+      devices = ADB.devices()
+      learnIdentities(devices)
     }
 
     var byID: [String: Phone] = [:]
     for device in devices where device.state == "device" {
       guard let identity = identities[device.serial] else { continue }
+      if !device.isUSB, preferUSB.contains(identity.id) { continue }
       if device.isUSB { result.usbPhoneIDs.insert(identity.id) }
-      let wantsUSB = !preferWiFi.contains(identity.id)
+      let wantsUSB = !preferWiFi.contains(identity.id) || failedUSBRecovery.contains(identity.id)
       if byID[identity.id]?.isUSB == wantsUSB { continue }
       byID[identity.id] = Phone(
         id: identity.id, name: identity.name, android: identity.android,
         transport: device.serial, isUSB: device.isUSB, maker: identity.maker)
+    }
+    for phone in byID.values where !phone.isUSB && !preferUSB.contains(phone.id) {
+      preferWiFi.insert(phone.id)
+      retries.removeValue(forKey: phone.id)
     }
     for device in devices where !device.isUSB && device.state == "device" {
       guard let id = identities[device.serial]?.id else { continue }
@@ -286,6 +341,41 @@ final class HubWorker: @unchecked Sendable {
     return result
   }
 
+  private func learnIdentities(_ devices: [ADB.Device]) {
+    let present = Set(devices.map(\.serial))
+    identities = identities.filter { present.contains($0.key) }
+    for device in devices where device.state == "device" && identities[device.serial] == nil {
+      identities[device.serial] = identify(device)
+    }
+  }
+
+  private func takeRetry(for id: String, rediscovered: Bool = false) -> Bool {
+    let now = uptime()
+    return retries[id, default: RetryWindow(started: now)].takeAttempt(
+      at: now, rediscovered: rediscovered)
+  }
+
+  private func recoverWireless(
+    after request: Request, devices: [ADB.Device], services: [ADB.Service]
+  ) -> Bool {
+    let wired = devices.filter { $0.isUSB && $0.state == "device" }
+    let wiredIDs = Set(wired.compactMap { identities[$0.serial]?.id })
+    let wirelessIDs = Set(
+      devices.filter { !$0.isUSB && $0.state == "device" }.compactMap { identities[$0.serial]?.id })
+    triedUSBRecovery.formIntersection(wiredIDs)
+    failedUSBRecovery.formIntersection(wiredIDs)
+
+    var attempted = false
+    for usb in wired where request.readyUSBMirrors.contains(usb.serial) {
+      guard let id = identities[usb.serial]?.id, preferWiFi.contains(id), !wirelessIDs.contains(id),
+        !request.switches.contains(where: { $0.id == id }), triedUSBRecovery.insert(id).inserted
+      else { continue }
+      attempted = true
+      if !connectWiFi(for: id, usb: usb.serial, services: services) { failedUSBRecovery.insert(id) }
+    }
+    return attempted
+  }
+
   private func switchTransport(for phone: Phone, services: [ADB.Service]) {
     let devices = ADB.devices().filter { $0.state == "device" }
     guard let usb = devices.first(where: {
@@ -295,14 +385,12 @@ final class HubWorker: @unchecked Sendable {
       let alreadyConnected = devices.contains {
         !$0.isUSB && ADB.shell($0.serial, "getprop ro.serialno") == phone.id
       }
-      let pairedService = services.first {
-        $0.type.hasPrefix("_adb-tls-connect") && ADB.serial(fromServiceName: $0.name) == phone.id
-      }
-      if alreadyConnected || pairedService.map({ connect($0.address, to: phone.id) }) == true {
+      if alreadyConnected || connectWiFi(for: phone.id, usb: usb.serial, services: services) {
         preferWiFi.insert(phone.id)
-      } else if let address = openDirectWiFi(usb: usb.serial, phoneID: phone.id) {
-        directAddresses[phone.id] = address
-        preferWiFi.insert(phone.id)
+        failedUSBRecovery.remove(phone.id)
+        if preferUSB.remove(phone.id) != nil {
+          preferences.set(preferUSB.sorted(), forKey: "preferredUSBPhones")
+        }
       }
     } else {
       if enabledTCP.contains(phone.id) {
@@ -311,7 +399,21 @@ final class HubWorker: @unchecked Sendable {
       }
       if let address = directAddresses.removeValue(forKey: phone.id) { ADB.disconnect(address) }
       preferWiFi.remove(phone.id)
+      retries.removeValue(forKey: phone.id)
+      preferUSB.insert(phone.id)
+      preferences.set(preferUSB.sorted(), forKey: "preferredUSBPhones")
     }
+  }
+
+  private func connectWiFi(for id: String, usb: String, services: [ADB.Service]) -> Bool {
+    if let pairedService = services.first(where: {
+      $0.type.hasPrefix("_adb-tls-connect") && ADB.serial(fromServiceName: $0.name) == id
+    }), connect(pairedService.address, to: id) {
+      return true
+    }
+    guard let address = openDirectWiFi(usb: usb, phoneID: id) else { return false }
+    directAddresses[id] = address
+    return true
   }
 
   private func openDirectWiFi(usb serial: String, phoneID: String) -> String? {
@@ -385,7 +487,7 @@ final class HubWorker: @unchecked Sendable {
     var name = lines.count > 1 ? lines[1] : ""
     if name.isEmpty || name == "null" { name = device.model.isEmpty ? "Android" : device.model }
     return Identity(
-      id: serial.isEmpty ? device.serial : serial, name: name,
+      id: serial.isEmpty ? (impliedID(of: device) ?? device.serial) : serial, name: name,
       android: lines.count > 2 ? lines[2] : "", maker: lines.count > 3 ? lines[3] : "")
   }
 }

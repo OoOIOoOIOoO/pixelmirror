@@ -280,6 +280,7 @@ final class MirrorSession: @unchecked Sendable {
       return
     }
     let decoder = H264Packetizer()
+    var notifyWiredMirror = isUSB
     while let header = socket.read(12) {
       if header[header.startIndex] & 0x80 != 0 {
         let width = header.subdata(in: header.startIndex + 4..<header.startIndex + 8)
@@ -308,6 +309,12 @@ final class MirrorSession: @unchecked Sendable {
       if let sample = decoder.sample(from: packet) {
         if renderer.sampleBufferRenderer.status == .failed { renderer.sampleBufferRenderer.flush() }
         renderer.sampleBufferRenderer.enqueue(sample)
+        if notifyWiredMirror {
+          notifyWiredMirror = false
+          DispatchQueue.main.async {
+            if self.delegate != nil { DeviceHub.shared.wiredMirrorReady(transport: self.transport) }
+          }
+        }
       }
       if let recorder = activeRecorder {
         let pts = CMTime(value: Int64(flags & 0x1FFF_FFFF_FFFF_FFFF), timescale: 1_000_000)
