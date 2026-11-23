@@ -12,13 +12,22 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
   func start() {
     let mirrors = MirrorManager.shared
-    watching = mirrors.$live.combineLatest(mirrors.$recording)
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] live, recording in self?.update(live: live, recording: recording) }
+    let menuBarNotifications = MenuBarNotifications.shared
+    let notifications = menuBarNotifications.$enabled.combineLatest(menuBarNotifications.$count)
+    watching = Publishers.CombineLatest4(
+      mirrors.$live, mirrors.$recording, DeviceHub.shared.$phones, notifications
+    )
+    .receive(on: DispatchQueue.main)
+    .sink { [weak self] live, recording, phones, notificationState in
+      let (enabled, count) = notificationState
+      self?.update(
+        live: live, recording: recording, showsCounter: enabled && !phones.isEmpty,
+        count: enabled ? count : 0)
+    }
   }
 
-  private func update(live: [Phone], recording: Bool) {
-    guard !live.isEmpty else {
+  private func update(live: [Phone], recording: Bool, showsCounter: Bool, count: Int) {
+    guard !live.isEmpty || showsCounter else {
       if let item { NSStatusBar.system.removeStatusItem(item) }
       item = nil
       return
@@ -36,6 +45,10 @@ final class StatusMenu: NSObject, NSMenuDelegate {
       systemSymbolName: symbol, accessibilityDescription: "PixelMirror")
     image?.isTemplate = true
     item?.button?.image = image
+    let showsCount = showsCounter && count > 0
+    item?.length = showsCount ? NSStatusItem.variableLength : NSStatusItem.squareLength
+    item?.button?.imagePosition = showsCount ? .imageLeft : .imageOnly
+    item?.button?.title = showsCount ? count.formatted() : ""
   }
 
   func menuNeedsUpdate(_ menu: NSMenu) {
@@ -78,6 +91,13 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(webcam)
       }
       menu.addItem(action(String(localized: "Stop Mirroring")) { mirrors.stop(phone) })
+      menu.addItem(.separator())
+    }
+    if MenuBarNotifications.shared.count > 0 {
+      menu.addItem(
+        action(String(localized: "Clear notification count")) {
+          MenuBarNotifications.shared.clear()
+        })
       menu.addItem(.separator())
     }
     menu.addItem(action(String(localized: "Quit PixelMirror")) { NSApp.terminate(nil) })

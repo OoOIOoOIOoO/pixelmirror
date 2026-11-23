@@ -37,14 +37,29 @@ final class PhoneNotifications: NSObject, ObservableObject, UNUserNotificationCe
   private func poll() {
     let phones = DeviceHub.shared.phones
     for id in seen.keys where !phones.contains(where: { $0.id == id }) { seen[id] = nil }
-    guard enabled else { return }
+    let menuBar = MenuBarNotifications.shared
+    menuBar.retainPhones(Set(phones.map(\.id)))
+    guard enabled || menuBar.enabled else { return }
     for phone in phones where !reading.contains(phone.id) {
       reading.insert(phone.id)
       let transport = phone.transport
       DispatchQueue.global().async {
-        let list = Self.read(transport)
+        let result = Self.read(transport)
+        let list = result.ok ? Self.parse(result.output) : nil
         DispatchQueue.main.async {
           self.reading.remove(phone.id)
+          if DeviceHub.shared.phones.contains(where: {
+            $0.id == phone.id && $0.transport == transport
+          }) {
+            if let list {
+              menuBar.received(list, phoneID: phone.id)
+            } else if result.status == 1
+              && result.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+              // grep exits with 1 when none of the notification fields match.
+              menuBar.received([], phoneID: phone.id)
+            }
+          }
           self.received(list, from: phone)
         }
       }
@@ -129,15 +144,12 @@ final class PhoneNotifications: NSObject, ObservableObject, UNUserNotificationCe
     var updated: String
   }
 
-  /// nil when the phone could not be read, so nothing is mistaken for new.
-  nonisolated private static func read(_ transport: String) -> [Item]? {
+  nonisolated private static func read(_ transport: String) -> ADB.Result {
     let filter =
       "^    NotificationRecord|^      flags=|android\\.(title|text|appLabel)=|^      mUpdateTimeMs="
-    let result = ADB.run(
+    return ADB.run(
       ["-s", transport, "shell", "dumpsys notification --noredact | grep -E '\(filter)'"],
       timeout: 8)
-    guard result.ok else { return nil }
-    return parse(result.output)
   }
 
   nonisolated static func parse(_ output: String) -> [Item] {

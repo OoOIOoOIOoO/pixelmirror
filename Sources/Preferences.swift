@@ -8,6 +8,7 @@ struct PreferencesCard: View {
   @AppStorage(Telemetry.key) private var sharesUsageStatistics = true
   @AppStorage(PhoneNotifications.key) private var showsPhoneNotifications = true
   @ObservedObject private var notifications = PhoneNotifications.shared
+  @ObservedObject private var privacy = MirrorCapturePrivacy.shared
 
   var body: some View {
     SettingsGroup {
@@ -66,6 +67,17 @@ struct PreferencesCard: View {
         _ in notifications.refreshAuthorization()
       }
       SettingsDivider()
+      MenuBarNotificationPreferences()
+      SettingsDivider()
+      SettingsRow(
+        "eye.slash.fill", tint: .indigo, title: String(localized: "Private window"),
+        subtitle: String(localized: "Protect the phone video from supported screen captures.")
+      ) {
+        Toggle("Private window", isOn: $privacy.enabled)
+          .toggleStyle(.switch)
+          .labelsHidden()
+      }
+      SettingsDivider()
       SettingsRow(
         "arrow.triangle.2.circlepath", tint: .green,
         title: String(localized: "Install updates automatically")
@@ -86,6 +98,64 @@ struct PreferencesCard: View {
           .labelsHidden()
       }
     }
+  }
+}
+
+private struct MenuBarNotificationPreferences: View {
+  @ObservedObject private var notifications = MenuBarNotifications.shared
+  @ObservedObject private var hub = DeviceHub.shared
+  @ObservedObject private var phoneApps = PhoneApps.shared
+  @State private var expanded = false
+
+  var body: some View {
+    SettingsRow(
+      "number", tint: .red, title: String(localized: "Menu bar notification count")
+    ) {
+      Toggle("Menu bar notification count", isOn: $notifications.enabled)
+        .toggleStyle(.switch)
+        .labelsHidden()
+    }
+    if notifications.enabled {
+      DisclosureGroup("Notification apps", isExpanded: $expanded) {
+        let apps = notifications.apps(from: hub.phones.flatMap { phoneApps.apps(on: $0) })
+        if apps.isEmpty {
+          Text("No phone apps available")
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 8)
+        } else {
+          ScrollView {
+            VStack(alignment: .leading, spacing: 7) {
+              ForEach(apps) { app in
+                Toggle(
+                  isOn: Binding(
+                    get: { notifications.includes(app) },
+                    set: { notifications.setApp(app, enabled: $0) })
+                ) {
+                  Text(verbatim: app.label)
+                }
+                .toggleStyle(.switch)
+                .font(.system(size: 12))
+              }
+            }
+            .padding(.vertical, 7)
+            .padding(.trailing, 6)
+          }
+          .frame(height: min(180, CGFloat(apps.count) * 26 + 14))
+        }
+      }
+      .controlSize(.small)
+      .padding(.leading, SettingsMetrics.dividerInset)
+      .padding(.trailing, SettingsMetrics.rowPaddingH)
+      .padding(.bottom, 10)
+      .onAppear(perform: refreshApps)
+      .onChange(of: expanded) { _, _ in refreshApps() }
+      .onChange(of: hub.phones) { _, _ in refreshApps() }
+    }
+  }
+
+  private func refreshApps() {
+    guard expanded else { return }
+    for phone in hub.phones { phoneApps.refresh(phone) }
   }
 }
 

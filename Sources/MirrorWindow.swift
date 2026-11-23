@@ -1295,7 +1295,7 @@ final class MirrorView: NSView, NSTextInputClient {
   required init?(coder: NSCoder) { fatalError() }
 
   override func makeBackingLayer() -> CALayer {
-    let layer = AVSampleBufferDisplayLayer()
+    let layer = MirrorCapturePrivacy.shared.makeLayer()
     layer.videoGravity = .resizeAspect
     layer.backgroundColor = NSColor.black.cgColor
     return layer
