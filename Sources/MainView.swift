@@ -166,11 +166,22 @@ struct MainView: View {
     return SettingsRow(
       phone.isUSB ? "cable.connector" : "wifi", tint: .green, title: phone.name, subtitle: subtitle
     ) {
-      Button(
-        mirrors.mirroring.contains(phone.id)
-          ? String(localized: "Show") : String(localized: "Mirror")
-      ) {
-        mirrors.open(phone)
+      let switching = hub.switchingPhoneIDs.contains(phone.id)
+      HStack(spacing: 6) {
+        Button(
+          phone.isUSB ? String(localized: "Switch to Wi-Fi") : String(localized: "Switch to USB")
+        ) {
+          hub.switchTransport(for: phone)
+        }
+        .disabled(switching || (!phone.isUSB && !hub.usbPhoneIDs.contains(phone.id)))
+        if switching { ProgressView().controlSize(.small) }
+        Button(
+          mirrors.mirroring.contains(phone.id)
+            ? String(localized: "Show") : String(localized: "Mirror")
+        ) {
+          mirrors.open(phone)
+        }
+        .disabled(switching)
       }
       .controlSize(.small)
     }

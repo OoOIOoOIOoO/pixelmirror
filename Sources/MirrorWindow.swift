@@ -76,8 +76,12 @@ final class MirrorManager: ObservableObject {
   func phonesChanged(_ phones: [Phone]) {
     let present = Set(phones.map(\.id))
     dismissed = dismissed.intersection(present)
-    for controller in controllers.values where !present.contains(controller.phone.id) {
-      controller.phoneWentAway()
+    for controller in controllers.values {
+      if let phone = phones.first(where: { $0.id == controller.phone.id }) {
+        if phone.transport != controller.phone.transport { controller.resume(with: phone) }
+      } else {
+        controller.phoneWentAway()
+      }
     }
     sessionsChanged()
   }
@@ -110,7 +114,7 @@ final class MirrorManager: ObservableObject {
       PhonePower.keepAwake(phone)
     }
     if isPhone { darkened.insert(phoneID) }
-    controller.onClose = { [weak self] in
+    controller.onClose = { [weak self, weak controller] in
       guard let self else { return }
       self.controllers[key] = nil
       if isPhone {
@@ -118,7 +122,7 @@ final class MirrorManager: ObservableObject {
         self.dismissed.insert(phoneID)
       }
       self.sessionsChanged()
-      self.releaseIfLast(phone)
+      self.releaseIfLast(controller?.phone ?? phone)
     }
     controllers[key] = controller
     if isPhone { mirroring.insert(phoneID) }
@@ -660,10 +664,14 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   }
 
   func resume(with phone: Phone) {
+    let changedTransport = self.phone.transport != phone.transport
     self.phone = phone
     phonePresent = true
     updateTitle()
-    if session == nil {
+    if changedTransport || session == nil {
+      let previous = session
+      session = nil
+      previous?.stop()
       retries = 0
       startSession()
     }
@@ -705,7 +713,9 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     mirrorView.videoSize = size
     keyMapper.videoSize = size
     // An app's or a desktop's display follows its window, not the other way round.
-    if !ownsDisplay, !unlocking { fit(to: size, resize: first || rotated) }
+    if !ownsDisplay, !unlocking, let window {
+      MirrorWindowGeometry.fit(window, to: size, phoneID: phone.id, resize: first || rotated)
+    }
   }
 
   func sessionDidEnd(_ session: MirrorSession, error: String?) {
@@ -759,33 +769,16 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
 
   // While recording, the display keeps its size: one recording has one size.
   func windowDidEndLiveResize(_ notification: Notification) {
-    if ownsDisplay, !isRecording { session?.input.resizeDisplay(displaySize) }
+    if ownsDisplay {
+      if !isRecording { session?.input.resizeDisplay(displaySize) }
+    } else if !unlocking, let window {
+      MirrorWindowGeometry.saveWidth(of: window, videoSize: videoSize, phoneID: phone.id)
+    }
   }
 
   func windowDidResize(_ notification: Notification) {
     guard ownsDisplay, !isRecording, window?.inLiveResize == false else { return }
     session?.input.resizeDisplay(displaySize)
-  }
-
-  private func fit(to size: CGSize, resize: Bool) {
-    guard let window, let screen = window.screen ?? NSScreen.main else { return }
-    window.contentAspectRatio = size
-    guard resize, !window.styleMask.contains(.fullScreen) else { return }
-    let visible = screen.visibleFrame
-    var height = min(visible.height * 0.86, size.height / (screen.backingScaleFactor))
-    if size.width > size.height { height = min(visible.height * 0.7, height) }
-    var width = height * size.width / size.height
-    if width > visible.width * 0.9 {
-      width = visible.width * 0.9
-      height = width * size.height / size.width
-    }
-    let content = NSRect(x: 0, y: 0, width: width, height: height)
-    var frame = window.frameRect(forContentRect: content)
-    let old = window.frame
-    frame.origin = NSPoint(x: old.midX - frame.width / 2, y: old.maxY - frame.height)
-    frame.origin.x = min(max(frame.origin.x, visible.minX), visible.maxX - frame.width)
-    frame.origin.y = min(max(frame.origin.y, visible.minY), visible.maxY - frame.height)
-    window.setFrame(frame, display: true, animate: !resize || videoSize != size)
   }
 
   private func showOverlay(_ text: String, busy: Bool) {
@@ -980,6 +973,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
   func toggleRecording() {
     guard let session else { return }
     if session.isRecording { return session.stopRecording() }
+    guard !isRecording else { return }
     let url = Capture.movies.appendingPathComponent(
       Capture.fileName(app?.label ?? phone.name, ext: "mp4"))
     do {

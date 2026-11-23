@@ -26,6 +26,8 @@ final class DeviceHub: ObservableObject {
   static let shared = DeviceHub()
 
   @Published private(set) var phones: [Phone] = []
+  @Published private(set) var usbPhoneIDs: Set<String> = []
+  @Published private(set) var switchingPhoneIDs: Set<String> = []
   @Published private(set) var needsUSBApproval = false
   @Published private(set) var known: [KnownPhone] = []
   @Published private(set) var pairing = PairingState.idle
@@ -50,6 +52,7 @@ final class DeviceHub: ObservableObject {
   private var timer: Timer?
   private var scanning = false
   private var typedCode: String?
+  private var pendingSwitches: [Phone] = []
   private var readyIDs: Set<String> = []
   private var searchingSince = Date()
 
@@ -80,16 +83,25 @@ final class DeviceHub: ObservableObject {
     if pairing != .pairing { pairing = .idle }
   }
 
+  func switchTransport(for phone: Phone) {
+    guard phones.contains(phone), phone.isUSB || usbPhoneIDs.contains(phone.id),
+      switchingPhoneIDs.insert(phone.id).inserted
+    else { return }
+    pendingSwitches.append(phone)
+    scan()
+  }
+
   // MARK: - Scanning
 
   private func scan() {
     guard !scanning else { return }
     scanning = true
     let request = HubWorker.Request(
-      qr: qr, typedCode: typedCode,
+      qr: qr, typedCode: typedCode, switches: pendingSwitches,
       lastAddresses: Dictionary(
         known.compactMap { phone in phone.address.map { (phone.id, $0) } },
         uniquingKeysWith: { first, _ in first }))
+    pendingSwitches.removeAll()
     queue.async { [worker] in
       let result = worker.scan(request) { started in
         DispatchQueue.main.async { if started { self.pairing = .pairing } }
@@ -109,6 +121,8 @@ final class DeviceHub: ObservableObject {
       phones = result.phones
       onPhonesChanged?(result.phones)
     }
+    if usbPhoneIDs != result.usbPhoneIDs { usbPhoneIDs = result.usbPhoneIDs }
+    for phone in request.switches { switchingPhoneIDs.remove(phone.id) }
     if needsUSBApproval != result.unauthorized { needsUSBApproval = result.unauthorized }
     if unpairedPhoneNearby != result.unpaired { unpairedPhoneNearby = result.unpaired }
     if phoneUnreachable != result.unreachable { phoneUnreachable = result.unreachable }
@@ -128,6 +142,7 @@ final class DeviceHub: ObservableObject {
       }
     }
     readyIDs = Set(result.phones.map(\.id))
+    if !pendingSwitches.isEmpty { scan() }
   }
 
   private func remember(_ phone: Phone, address: String?) {
@@ -151,11 +166,13 @@ final class HubWorker: @unchecked Sendable {
   struct Request {
     var qr: PairingQR
     var typedCode: String?
+    var switches: [Phone]
     var lastAddresses: [String: String]  // known phone id → its last Wi-Fi address
   }
 
   struct Result {
     var phones: [Phone] = []
+    var usbPhoneIDs: Set<String> = []
     var addresses: [String: String] = [:]  // phone id → Wi-Fi address
     var unauthorized = false
     var unpaired = false
@@ -173,6 +190,9 @@ final class HubWorker: @unchecked Sendable {
   private var identities: [String: Identity] = [:]
   private var lastAttempt: [String: Date] = [:]
   private var failures: [String: ADB.Connection] = [:]  // announced address → why it failed
+  private var preferWiFi: Set<String> = []
+  private var directAddresses: [String: String] = [:]
+  private var enabledTCP: Set<String> = []
   private var started = false
 
   func scan(_ request: Request, pairingStarted: (Bool) -> Void) -> Result {
@@ -182,6 +202,7 @@ final class HubWorker: @unchecked Sendable {
     }
     var result = Result()
     let services = ADB.services()
+    for phone in request.switches { switchTransport(for: phone, services: services) }
 
     // Pairing: the phone advertises a pairing service named after our QR code,
     // or a pairing service of its own while someone types its pairing code.
@@ -224,6 +245,12 @@ final class HubWorker: @unchecked Sendable {
       lastAttempt[address] = Date()
       if ADB.connect(address) == .connected { connected = true }
     }
+    for (id, address) in directAddresses where preferWiFi.contains(id) {
+      guard !attachedSerials.contains(address) else { continue }
+      if let last = lastAttempt[address], Date().timeIntervalSince(last) < 4 { continue }
+      lastAttempt[address] = Date()
+      if connect(address, to: id) { connected = true }
+    }
     result.unpaired = failures.values.contains(.needsPairing)
     result.unreachable = failures.values.contains(.unreachable)
     if connected || result.paired == true { devices = ADB.devices() }
@@ -238,13 +265,16 @@ final class HubWorker: @unchecked Sendable {
     var byID: [String: Phone] = [:]
     for device in devices where device.state == "device" {
       guard let identity = identities[device.serial] else { continue }
-      if let existing = byID[identity.id], existing.isUSB { continue }
+      if device.isUSB { result.usbPhoneIDs.insert(identity.id) }
+      let wantsUSB = !preferWiFi.contains(identity.id)
+      if byID[identity.id]?.isUSB == wantsUSB { continue }
       byID[identity.id] = Phone(
         id: identity.id, name: identity.name, android: identity.android,
         transport: device.serial, isUSB: device.isUSB, maker: identity.maker)
     }
     for device in devices where !device.isUSB && device.state == "device" {
       guard let id = identities[device.serial]?.id else { continue }
+      if device.serial == directAddresses[id] { continue }
       if device.serial.contains(":") {
         result.addresses[id] = device.serial
       } else if let service = announced.first(where: { device.serial.hasPrefix($0.name) }) {
@@ -254,6 +284,80 @@ final class HubWorker: @unchecked Sendable {
     result.phones = byID.values.sorted { $0.name < $1.name }
     result.unauthorized = devices.contains { $0.isUSB && $0.state == "unauthorized" }
     return result
+  }
+
+  private func switchTransport(for phone: Phone, services: [ADB.Service]) {
+    let devices = ADB.devices().filter { $0.state == "device" }
+    guard let usb = devices.first(where: {
+      $0.isUSB && (identities[$0.serial]?.id ?? $0.serial) == phone.id
+    }) else { return }
+    if phone.isUSB {
+      let alreadyConnected = devices.contains {
+        !$0.isUSB && ADB.shell($0.serial, "getprop ro.serialno") == phone.id
+      }
+      let pairedService = services.first {
+        $0.type.hasPrefix("_adb-tls-connect") && ADB.serial(fromServiceName: $0.name) == phone.id
+      }
+      if alreadyConnected || pairedService.map({ connect($0.address, to: phone.id) }) == true {
+        preferWiFi.insert(phone.id)
+      } else if let address = openDirectWiFi(usb: usb.serial, phoneID: phone.id) {
+        directAddresses[phone.id] = address
+        preferWiFi.insert(phone.id)
+      }
+    } else {
+      if enabledTCP.contains(phone.id) {
+        guard restoreUSB(usb.serial) else { return }
+        enabledTCP.remove(phone.id)
+      }
+      if let address = directAddresses.removeValue(forKey: phone.id) { ADB.disconnect(address) }
+      preferWiFi.remove(phone.id)
+    }
+  }
+
+  private func openDirectWiFi(usb serial: String, phoneID: String) -> String? {
+    guard ADB.shell(serial, "getprop ro.adb.secure") == "1",
+      ADB.shell(serial, "getprop ro.serialno") == phoneID
+    else { return nil }
+    let interfaces = ADB.shell(serial, "ip -4 -o addr show dev wlan0 scope global")
+    guard let range = interfaces.range(
+      of: #"\binet ([0-9]{1,3}\.){3}[0-9]{1,3}/"#, options: .regularExpression)
+    else { return nil }
+    let ip = interfaces[range].dropFirst("inet ".count).dropLast()
+    let servicePort = ADB.shell(serial, "getprop service.adb.tcp.port")
+    let currentPort = UInt16(
+      servicePort.isEmpty ? ADB.shell(serial, "getprop persist.adb.tcp.port") : servicePort) ?? 0
+    let port = currentPort == 0 ? 5555 : currentPort
+    let address = "\(ip):\(port)"
+    let needsTCP = currentPort == 0
+    if needsTCP {
+      guard ADB.run(["-s", serial, "tcpip", String(port)], timeout: 5).ok else { return nil }
+      enabledTCP.insert(phoneID)
+    }
+    for attempt in 0..<3 {
+      if attempt > 0 { Thread.sleep(forTimeInterval: 0.7) }
+      if connect(address, to: phoneID) { return address }
+    }
+    if needsTCP, restoreUSB(serial) { enabledTCP.remove(phoneID) }
+    return nil
+  }
+
+  private func connect(_ address: String, to id: String) -> Bool {
+    guard ADB.connect(address) == .connected else { return false }
+    if ADB.shell(address, "getprop ro.serialno", timeout: 3) == id { return true }
+    ADB.disconnect(address)
+    return false
+  }
+
+  private func restoreUSB(_ serial: String) -> Bool {
+    for _ in 0..<3 {
+      let result = ADB.run(["-s", serial, "usb"], timeout: 3)
+      if result.ok, result.output.contains("restarting in USB mode") {
+        _ = ADB.run(["-s", serial, "wait-for-device"], timeout: 6)
+        return true
+      }
+      Thread.sleep(forTimeInterval: 0.5)
+    }
+    return false
   }
 
   /// A cable's serial is the hardware serial; adb's own mDNS connections carry it in the name.

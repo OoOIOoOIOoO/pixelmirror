@@ -35,6 +35,7 @@
 		EAC424CF17BDF45B70C12814 /* MacNetwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F5E49BD150B8203FEA5A68 /* MacNetwork.swift */; };
 		EF11B0858A0918D14B24B58B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 5CFE9A5A447009CE9A440505 /* Sparkle */; };
 		F0B1E842DD1B46BC940DBD69 /* MirrorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E91D975C7B15A16E35104B3 /* MirrorWindow.swift */; };
+		A58668BA019449B88C94E993 /* MirrorWindowGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F444005ECC4AE9936E23A6 /* MirrorWindowGeometry.swift */; };
 		F1B383ADF66DCA594D9C90DC /* ControlChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F565F0B919AA44A067F4F94E /* ControlChannel.swift */; };
 		F35639FFD284023BD6828965 /* Telemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C997E9F17BB40B9FEC7DE0 /* Telemetry.swift */; };
 		FCE9095F852A90E83248F79E /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC24B5A19E325C508FB5E2B4 /* MainView.swift */; };
@@ -66,6 +67,7 @@
 
 /* Begin PBXFileReference section */
 		0E91D975C7B15A16E35104B3 /* MirrorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorWindow.swift; sourceTree = "<group>"; };
+		72F444005ECC4AE9936E23A6 /* MirrorWindowGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorWindowGeometry.swift; sourceTree = "<group>"; };
 		0F1BB8279B868E52343BCD76 /* SettingsChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsChrome.swift; sourceTree = "<group>"; };
 		124E11D2E17D64A7C93E2CB2 /* PixelMirrorCamera.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; path = PixelMirrorCamera.systemextension; sourceTree = BUILT_PRODUCTS_DIR; };
 		15186BD95E2825A38B52FD3C /* WhatsNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewView.swift; sourceTree = "<group>"; };
@@ -172,6 +174,7 @@
 				DC24B5A19E325C508FB5E2B4 /* MainView.swift */,
 				6424503747E1F4C560994DE9 /* MirrorSession.swift */,
 				0E91D975C7B15A16E35104B3 /* MirrorWindow.swift */,
+				72F444005ECC4AE9936E23A6 /* MirrorWindowGeometry.swift */,
 				FD616DF78FDBA7EABD6F4DB3 /* PhoneApps.swift */,
 				5C7B4C7822434C310145EBC2 /* PhoneFiles.swift */,
 				6F6C2E2AF7D20D31D224C8DB /* PhoneNotifications.swift */,
@@ -352,6 +355,7 @@
 				FCE9095F852A90E83248F79E /* MainView.swift in Sources */,
 				71D1ABDB220C32481770B2C3 /* MirrorSession.swift in Sources */,
 				F0B1E842DD1B46BC940DBD69 /* MirrorWindow.swift in Sources */,
+				A58668BA019449B88C94E993 /* MirrorWindowGeometry.swift in Sources */,
 				DAF86FAD9ACC7A0EE326636E /* PhoneApps.swift in Sources */,
 				37ED7C307CF8BA1C868B86E4 /* PhoneFiles.swift in Sources */,
 				C5D48BAD396036B300DFBEB5 /* PhoneNotifications.swift in Sources */,

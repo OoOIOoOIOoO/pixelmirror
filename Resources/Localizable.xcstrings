@@ -13168,6 +13168,38 @@
         }
       }
     },
+    "Switch to USB" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换为 USB"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切換為 USB"
+          }
+        }
+      }
+    },
+    "Switch to Wi-Fi" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换为无线"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切換為無線"
+          }
+        }
+      }
+    },
     "Protect the phone video from supported screen captures." : {
       "localizations" : {
         "zh-Hans" : {

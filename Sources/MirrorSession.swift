@@ -96,8 +96,7 @@ final class MirrorSession: @unchecked Sendable {
     let recorder = self.recorder
     self.recorder = nil
     lock.unlock()
-    recorder?.finish { [weak self] url in
-      guard let self else { return }
+    recorder?.finish { [self] url in
       MainActor.assumeIsolated { self.delegate?.session(self, recordingFinished: url) }
     }
   }
