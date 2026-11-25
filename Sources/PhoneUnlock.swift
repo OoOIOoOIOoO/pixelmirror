@@ -6,18 +6,30 @@ import SwiftUI
 /// Android hides its PIN screen from every capture, so the mirror goes black there.
 /// The PIN is typed on the Mac instead, and the app opens that screen and enters it.
 enum PhoneUnlock {
-  /// The PIN screen is the only one that captures as pure black, a tiny PNG.
-  private static let black = "[ $(screencap -p | wc -c) -lt 100000 ]"
-  private static let keyguard = "dumpsys window policy | grep -A1 KeyguardServiceDelegate"
+  /// A redacted PIN screen typically captures as a small, black PNG.
+  private static let black =
+    "size=$(screencap -p | wc -c); [ \"$size\" -gt 0 ] && [ \"$size\" -lt 100000 ]"
+  private static let keyguard = """
+    dumpsys window policy | awk '
+      /^[[:space:]]*KeyguardServiceDelegate:?[[:space:]]*$/ { level = match($0, /[^[:space:]]/); next }
+      level && match($0, /[^[:space:]]/) {
+        if (RSTART <= level) exit
+        if ($1 ~ /^(showing|secure)=(true|false)$/) print $1
+      }'
+    """
 
-  /// Whether the phone is locked and, only then, whether its PIN screen is open.
-  static func state(_ transport: String) -> (locked: Bool, pinScreen: Bool) {
+  /// A swipe lock can be showing without requiring credentials.
+  static func state(_ transport: String) -> (locked: Bool, secure: Bool, pinScreen: Bool) {
     let script = """
-      \(keyguard) | grep -q showing=true || exit
-      echo locked; \(black) && echo pin
+      policy=$(\(keyguard))
+      printf '%s\\n' "$policy" | grep -qx showing=true || exit
+      echo locked
+      printf '%s\\n' "$policy" | grep -qx secure=true || exit
+      echo secure
+      \(black) && echo pin
       """
-    let out = ADB.shell(transport, script)
-    return (out.contains("locked"), out.hasSuffix("pin"))
+    let fields = ADB.shell(transport, script).split(separator: "\n")
+    return (fields.contains("locked"), fields.contains("secure"), fields.contains("pin"))
   }
 
   static func isLocked(_ transport: String, _ done: @escaping @MainActor (Bool?) -> Void) {
@@ -45,15 +57,19 @@ enum PhoneUnlock {
   static func openPINScreen(_ transport: String, wakeBeforeChecking: Bool = false) -> Bool {
     let wake = "input keyevent KEYCODE_WAKEUP"
     let script = """
-      locked() { \(keyguard) | grep -q showing=true; }
-      pin_ready() { \(black) && locked; }
-      locked || exit
+      secure_locked() {
+        policy=$(\(keyguard))
+        printf '%s\\n' "$policy" | grep -qx showing=true &&
+          printf '%s\\n' "$policy" | grep -qx secure=true
+      }
+      pin_ready() { secure_locked && { \(black); }; }
+      secure_locked || exit
       \(wakeBeforeChecking ? wake + "; sleep 0.3" : "")
       pin_ready && { echo ready; exit; }
       \(wakeBeforeChecking ? "" : wake)
       set -- $(wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' ')
       for try in 1 2; do
-        locked || exit
+        secure_locked || exit
         input keyevent KEYCODE_SPACE
         for wait in 1 2 3 4 5; do sleep 0.3; pin_ready && { echo ready; exit; }; done
         input tap $(($1/2)) $(($2/6)); sleep 0.5
@@ -68,15 +84,32 @@ enum PhonePIN {
   private static let service = "com.reffwu.pixelmirror.phone-pin"
   private static func savedKey(_ id: String) -> String { "pinSaved.\(id)" }
 
+  // The data protection keychain needs an access group from the running app's signing entitlements.
+  private static let hasKeychainAccessGroup: Bool = {
+    guard let task = SecTaskCreateFromSelf(nil) else { return false }
+    let appID =
+      SecTaskCopyValueForEntitlement(
+        task, "com.apple.application-identifier" as CFString, nil) as? String
+    if let appID, !appID.isEmpty { return true }
+    return ["keychain-access-groups", "com.apple.security.application-groups"].contains { name in
+      let groups = SecTaskCopyValueForEntitlement(task, name as CFString, nil) as? [String]
+      return groups?.contains { !$0.isEmpty } == true
+    }
+  }()
+
   static var canUseTouchID: Bool {
-    LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+    hasKeychainAccessGroup
+      && LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
   }
 
-  static func isSaved(_ id: String) -> Bool { UserDefaults.standard.bool(forKey: savedKey(id)) }
+  static func isSaved(_ id: String) -> Bool {
+    hasKeychainAccessGroup && UserDefaults.standard.bool(forKey: savedKey(id))
+  }
 
   /// False when this Mac or this build can't keep it, such as a Mac without a password.
   @discardableResult
   static func save(_ pin: String, for id: String) -> Bool {
+    guard hasKeychainAccessGroup else { return false }
     delete(id)
     guard
       let access = SecAccessControlCreateWithFlags(

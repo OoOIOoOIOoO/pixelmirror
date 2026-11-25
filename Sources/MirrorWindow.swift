@@ -466,18 +466,18 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
         guard let self else { return }
         self.checkingLock = false
         guard !self.ownsDisplay, !self.unlockModel.working, !self.openingPINScreen else { return }
-        self.lockChanged(locked: state.locked, pinScreen: state.pinScreen)
+        self.lockChanged(locked: state.locked, secure: state.secure, pinScreen: state.pinScreen)
       }
     }
   }
 
-  private func lockChanged(locked: Bool, pinScreen: Bool) {
-    phoneLocked = locked
-    guard locked else {
+  private func lockChanged(locked: Bool, secure: Bool, pinScreen: Bool) {
+    phoneLocked = locked && secure
+    guard phoneLocked else {
       touchIDAsked = false
       pinScreenOpened = false
       showUnlockCard(false)
-      if unlocking {
+      if unlocking, !locked {
         stopWaitingForUnlock()
         startSession()
       }
@@ -508,7 +508,8 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
       DispatchQueue.main.async {
         guard let self else { return }
         self.openingPINScreen = false
-        if ready, !self.ownsDisplay { self.lockChanged(locked: true, pinScreen: true) }
+        guard ready, !self.ownsDisplay else { return }
+        self.lockChanged(locked: true, secure: true, pinScreen: true)
       }
     }
   }
