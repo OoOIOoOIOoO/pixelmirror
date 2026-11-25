@@ -140,13 +140,15 @@ final class PhoneNotifications: NSObject, ObservableObject, UNUserNotificationCe
     var text: String?
     var key: String
     var alertsOnce: Bool
+    var number = 1
     var signature: String { "\(key)@\(updated)" }
     var updated: String
   }
 
   nonisolated private static func read(_ transport: String) -> ADB.Result {
     let filter =
-      "^    NotificationRecord|^      flags=|android\\.(title|text|appLabel)=|^      mUpdateTimeMs="
+      "^    NotificationRecord|^      (flags|mUpdateTimeMs)="
+      + "|^ +number=-?[0-9]+$|android\\.(title|text|appLabel)="
     return ADB.run(
       ["-s", transport, "shell", "dumpsys notification --noredact | grep -E '\(filter)'"],
       timeout: 8)
@@ -172,6 +174,7 @@ final class PhoneNotifications: NSObject, ObservableObject, UNUserNotificationCe
         Item(
           package: package, app: current["appLabel"] ?? package, title: title, text: text,
           key: key, alertsOnce: flags.contains("ONLY_ALERT_ONCE"),
+          number: max(1, Int(Int32(current["number"] ?? "") ?? 1)),
           updated: current["updated"] ?? ""))
     }
     for line in output.split(separator: "\n") {
@@ -186,6 +189,8 @@ final class PhoneNotifications: NSObject, ObservableObject, UNUserNotificationCe
         }
       } else if trimmed.hasPrefix("flags=") {
         current["flags"] = String(trimmed.dropFirst(6))
+      } else if trimmed.hasPrefix("number=") {
+        current["number"] = String(trimmed.dropFirst(7))
       } else if trimmed.hasPrefix("mUpdateTimeMs=") {
         current["updated"] = String(trimmed.dropFirst(14))
       } else {

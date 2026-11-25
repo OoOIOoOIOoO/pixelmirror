@@ -18,9 +18,14 @@ final class MenuBarNotifications: ObservableObject {
   @Published private(set) var selectedApps: [PhoneApp]
   @Published private(set) var count = 0
 
+  private struct Pending {
+    var package: String
+    var number: Int
+  }
+
   private struct Snapshot {
-    var current = Set<String>()
-    var pending: [String: String] = [:]
+    var current: [String: Int]
+    var pending: [String: Pending] = [:]
   }
 
   private let defaults: UserDefaults
@@ -52,7 +57,7 @@ final class MenuBarNotifications: ObservableObject {
       selectedApps.insert(app, at: 0)
     } else {
       for phone in Array(snapshots.keys) {
-        let remaining = snapshots[phone]?.pending.filter { $0.value != app.package } ?? [:]
+        let remaining = snapshots[phone]?.pending.filter { $0.value.package != app.package } ?? [:]
         snapshots[phone]?.pending = remaining
       }
     }
@@ -68,14 +73,17 @@ final class MenuBarNotifications: ObservableObject {
   func received(_ items: [PhoneNotifications.Item], phoneID: String) {
     guard enabled else { return }
     let selected = Set(selectedApps.map(\.package))
-    let current = Set(items.map(\.key))
-    let previous = snapshots[phoneID]
-    var snapshot = Snapshot(
-      current: current, pending: previous?.pending.filter { current.contains($0.key) } ?? [:])
-    if let previous {
-      for item in items
-      where !previous.current.contains(item.key) && selected.contains(item.package) {
-        snapshot.pending[item.key] = item.package
+    let current = Dictionary(items.map { ($0.key, $0.number) }, uniquingKeysWith: max)
+    var snapshot = Snapshot(current: current)
+    if let previous = snapshots[phoneID] {
+      for item in items where selected.contains(item.package) {
+        let oldNumber = previous.current[item.key, default: 0]
+        let oldPending = previous.pending[item.key]?.number ?? 0
+        let acknowledged = oldNumber - oldPending
+        let pending = current[item.key, default: 1] - acknowledged
+        if pending > 0 {
+          snapshot.pending[item.key] = Pending(package: item.package, number: pending)
+        }
       }
     }
     snapshots[phoneID] = snapshot
@@ -90,7 +98,7 @@ final class MenuBarNotifications: ObservableObject {
   }
 
   private func updateCount() {
-    let total = snapshots.values.reduce(0) { $0 + $1.pending.count }
+    let total = snapshots.values.flatMap { $0.pending.values }.reduce(0) { $0 + $1.number }
     if total != count { count = total }
   }
 }
