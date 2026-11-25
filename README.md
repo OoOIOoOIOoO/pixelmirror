@@ -53,6 +53,8 @@ English, Simplified Chinese, Traditional Chinese, Japanese, Korean, German, Fren
 
 ## Build from source
 
+Building the Android helper requires a JDK and Android SDK Platform 36 with Build-Tools 36.0.0. Set `ANDROID_HOME` to the SDK directory.
+
 ```sh
 git clone https://github.com/ReffWu/pixelmirror.git
 cd pixelmirror
@@ -66,7 +68,7 @@ Ideas, bug reports and pull requests are welcome. [Open an issue](https://github
 
 ## Credits
 
-PixelMirror stands on [scrcpy](https://github.com/Genymobile/scrcpy) by Genymobile (Apache 2.0), whose server runs on the phone, and Google's [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) (`adb`). Both are bundled unmodified; their licenses ship inside the app.
+PixelMirror stands on [scrcpy](https://github.com/Genymobile/scrcpy) by Genymobile (Apache 2.0), whose server runs on the phone, and Google's [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) (`adb`). This fork patches scrcpy's screen power control to target one physical display. Both licenses ship inside the app.
 
 ## License
 

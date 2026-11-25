@@ -66,7 +66,7 @@ open build/PixelMirror.app
 
 ## 크레딧
 
-PixelMirror는 Genymobile의 [scrcpy](https://github.com/Genymobile/scrcpy)(Apache 2.0, 서버는 폰에서 실행)와 Google의 [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)(`adb`) 위에 만들어졌습니다. 둘 다 수정 없이 포함되며 라이선스는 앱 안에 들어 있습니다.
+PixelMirror는 Genymobile의 [scrcpy](https://github.com/Genymobile/scrcpy)(Apache 2.0, 서버는 폰에서 실행)와 Google의 [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)(`adb`) 위에 만들어졌습니다. 이 브랜치는 scrcpy가 한 개의 물리 디스플레이만 제어하도록 화면 전원 동작을 수정합니다. 라이선스는 앱 안에 들어 있습니다.
 
 ## 라이선스
 

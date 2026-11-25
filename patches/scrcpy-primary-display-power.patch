@@ -1,0 +1,405 @@
+diff --git a/server/src/main/java/com/genymobile/scrcpy/CleanUp.java b/server/src/main/java/com/genymobile/scrcpy/CleanUp.java
+index a5816c3..ccd7848 100644
+--- a/server/src/main/java/com/genymobile/scrcpy/CleanUp.java
++++ b/server/src/main/java/com/genymobile/scrcpy/CleanUp.java
+@@ -11,9 +11,12 @@ import android.os.Looper;
+ import android.system.ErrnoException;
+ import android.system.Os;
+ 
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
+ import java.io.File;
+ import java.io.IOException;
+-import java.io.OutputStream;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.TimeUnit;
+ 
+ /**
+  * Handle the cleanup of scrcpy, even if the main process is killed.
+@@ -22,16 +25,19 @@ import java.io.OutputStream;
+  */
+ public final class CleanUp {
+ 
+-    // Dynamic options
+-    private static final int PENDING_CHANGE_DISPLAY_POWER = 1 << 0;
+-    private int pendingChanges;
+-    private boolean pendingRestoreDisplayPower;
+-
+-    private Thread thread;
++    private final CountDownLatch ready = new CountDownLatch(1);
++    private final Thread thread;
++    private DataOutputStream restoreOutput;
+     private boolean interrupted;
+ 
+     private CleanUp(Options options) {
+-        thread = new Thread(() -> runCleanUp(options), "cleanup");
++        thread = new Thread(() -> {
++            try {
++                runCleanUp(options);
++            } finally {
++                ready.countDown();
++            }
++        }, "cleanup");
+         thread.start();
+     }
+ 
+@@ -40,9 +46,9 @@ public final class CleanUp {
+     }
+ 
+     public synchronized void interrupt() {
+-        // Do not use thread.interrupt() because only the wait() call must be interrupted, not Command.exec()
++        // Do not use thread.interrupt() because only the wait() call must be interrupted, not Command.exec().
+         interrupted = true;
+-        notify();
++        notifyAll();
+     }
+ 
+     public void join() throws InterruptedException {
+@@ -139,37 +145,47 @@ public final class CleanUp {
+         ProcessBuilder builder = new ProcessBuilder(cmd);
+         builder.environment().put("CLASSPATH", Server.SERVER_PATH);
+         Process process = builder.start();
+-        OutputStream out = process.getOutputStream();
+-
+-        while (true) {
+-            int localPendingChanges;
+-            boolean localPendingRestoreDisplayPower;
++        try (DataOutputStream out = new DataOutputStream(process.getOutputStream())) {
+             synchronized (this) {
+-                while (!interrupted && pendingChanges == 0) {
+-                    try {
++                restoreOutput = out;
++                ready.countDown();
++                try {
++                    while (!interrupted) {
+                         wait();
+-                    } catch (InterruptedException e) {
+-                        throw new AssertionError("Clean up thread MUST NOT be interrupted");
+                     }
++                } catch (InterruptedException e) {
++                    throw new AssertionError("Clean up thread MUST NOT be interrupted", e);
++                } finally {
++                    restoreOutput = null;
+                 }
+-                if (interrupted) {
+-                    break;
+-                }
+-                localPendingChanges = pendingChanges;
+-                localPendingRestoreDisplayPower = pendingRestoreDisplayPower;
+-                pendingChanges = 0;
+-            }
+-            if ((localPendingChanges & PENDING_CHANGE_DISPLAY_POWER) != 0) {
+-                out.write(localPendingRestoreDisplayPower ? 1 : 0);
+-                out.flush();
+             }
+         }
+     }
+ 
+-    public synchronized void setRestoreDisplayPower(boolean restoreDisplayPower) {
+-        pendingRestoreDisplayPower = restoreDisplayPower;
+-        pendingChanges |= PENDING_CHANGE_DISPLAY_POWER;
+-        notify();
++    public boolean setRestoreDisplayPower(long target) {
++        try {
++            if (!ready.await(2, TimeUnit.SECONDS)) {
++                Ln.w("Display power cleanup is not ready");
++                return false;
++            }
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            return false;
++        }
++
++        synchronized (this) {
++            if (interrupted || restoreOutput == null) {
++                return false;
++            }
++            try {
++                restoreOutput.writeLong(target);
++                restoreOutput.flush();
++                return true;
++            } catch (IOException e) {
++                Ln.e("Could not register the display power cleanup", e);
++                return false;
++            }
++        }
+     }
+ 
+     public static void unlinkSelf() {
+@@ -205,16 +221,12 @@ public final class CleanUp {
+         int restoreScreenOffTimeout = Integer.parseInt(args[4]);
+         int restoreDisplayImePolicy = Integer.parseInt(args[5]);
+ 
+-        // Dynamic option
+-        boolean restoreDisplayPower = false;
++        long restoreDisplayPower = Device.DISPLAY_POWER_TARGET_NONE;
+ 
++        DataInputStream updates = new DataInputStream(System.in);
+         try {
+-            // Wait for the server to die
+-            int msg;
+-            while ((msg = System.in.read()) != -1) {
+-                // Only restore display power
+-                assert msg == 0 || msg == 1;
+-                restoreDisplayPower = msg != 0;
++            while (true) {
++                restoreDisplayPower = updates.readLong();
+             }
+         } catch (IOException e) {
+             // Expected when the server is dead
+@@ -260,9 +272,9 @@ public final class CleanUp {
+             if (powerOffScreen) {
+                 Ln.i("Power off screen");
+                 Device.powerOffScreen(targetDisplayId);
+-            } else if (restoreDisplayPower) {
+-                Ln.i("Restoring display power");
+-                Device.setDisplayPower(targetDisplayId, true);
++            } else if (restoreDisplayPower != Device.DISPLAY_POWER_TARGET_NONE) {
++                Ln.i("Restoring physical display power for target " + restoreDisplayPower);
++                Device.setDisplayPower(restoreDisplayPower, true);
+             }
+         }
+ 
+diff --git a/server/src/main/java/com/genymobile/scrcpy/Server.java b/server/src/main/java/com/genymobile/scrcpy/Server.java
+index d7d1a76..ce85825 100644
+--- a/server/src/main/java/com/genymobile/scrcpy/Server.java
++++ b/server/src/main/java/com/genymobile/scrcpy/Server.java
+@@ -168,12 +168,12 @@ public final class Server {
+ 
+             Looper.loop(); // interrupted by the Completion implementation
+         } finally {
+-            if (cleanUp != null) {
+-                cleanUp.interrupt();
+-            }
+             for (AsyncProcessor asyncProcessor : asyncProcessors) {
+                 asyncProcessor.stop();
+             }
++            if (cleanUp != null) {
++                cleanUp.interrupt();
++            }
+ 
+             connection.shutdown();
+ 
+diff --git a/server/src/main/java/com/genymobile/scrcpy/control/Controller.java b/server/src/main/java/com/genymobile/scrcpy/control/Controller.java
+index 55d6e11..7ea951f 100644
+--- a/server/src/main/java/com/genymobile/scrcpy/control/Controller.java
++++ b/server/src/main/java/com/genymobile/scrcpy/control/Controller.java
+@@ -107,7 +107,9 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
+     private final MotionEvent.PointerProperties[] pointerProperties = new MotionEvent.PointerProperties[PointersState.MAX_POINTERS];
+     private final MotionEvent.PointerCoords[] pointerCoords = new MotionEvent.PointerCoords[PointersState.MAX_POINTERS];
+ 
+-    private boolean keepDisplayPowerOff;
++    private volatile boolean keepDisplayPowerOff;
++    private boolean displayPowerStopped;
++    private long poweredOffDisplay = Device.DISPLAY_POWER_TARGET_NONE;
+ 
+     // Used for resetting video encoding on RESET_VIDEO message or for sending camera controls
+     private SurfaceCapture surfaceCapture;
+@@ -297,6 +299,9 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
+ 
+     @Override
+     public void stop() {
++        synchronized (this) {
++            displayPowerStopped = true;
++        }
+         if (keepActiveThread != null) {
+             keepActiveThread.interrupt();
+         }
+@@ -443,7 +448,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
+     private boolean injectKeycode(int action, int keycode, int repeat, int metaState) {
+         if (keepDisplayPowerOff && action == KeyEvent.ACTION_UP && (keycode == KeyEvent.KEYCODE_POWER || keycode == KeyEvent.KEYCODE_WAKEUP)) {
+             assert displayId != Device.DISPLAY_ID_NONE;
+-            scheduleDisplayPowerOff(displayId);
++            scheduleDisplayPowerOff();
+         }
+         return injectKeyEvent(action, keycode, repeat, metaState, Device.INJECT_MODE_ASYNC);
+     }
+@@ -648,11 +653,15 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
+     /**
+      * Schedule a call to set display power to off after a small delay.
+      */
+-    private static void scheduleDisplayPowerOff(int displayId) {
+-        EXECUTOR.schedule(() -> {
++    private void scheduleDisplayPowerOff() {
++        EXECUTOR.schedule(this::keepDisplayPowerOff, 200, TimeUnit.MILLISECONDS);
++    }
++
++    private synchronized void keepDisplayPowerOff() {
++        if (!displayPowerStopped && keepDisplayPowerOff && poweredOffDisplay != Device.DISPLAY_POWER_TARGET_NONE) {
+             Ln.i("Forcing display off");
+-            Device.setDisplayPower(displayId, false);
+-        }, 200, TimeUnit.MILLISECONDS);
++            Device.setDisplayPower(poweredOffDisplay, false);
++        }
+     }
+ 
+     private boolean pressBackOrTurnScreenOn(int action) {
+@@ -679,7 +688,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
+ 
+         if (keepDisplayPowerOff) {
+             assert displayId != Device.DISPLAY_ID_NONE;
+-            scheduleDisplayPowerOff(displayId);
++            scheduleDisplayPowerOff();
+         }
+         return pressReleaseKeycode(KeyEvent.KEYCODE_POWER, Device.INJECT_MODE_ASYNC);
+     }
+@@ -854,19 +863,36 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
+         }
+     }
+ 
+-    private void setDisplayPower(boolean on) {
+-        // Change the power of the main display when mirroring a virtual display
+-        int targetDisplayId = displayId != Device.DISPLAY_ID_NONE ? displayId : 0;
+-        boolean setDisplayPowerOk = Device.setDisplayPower(targetDisplayId, on);
+-        if (setDisplayPowerOk) {
+-            // Do not keep display power off for virtual displays: MOD+p must wake up the physical device
+-            keepDisplayPowerOff = displayId != Device.DISPLAY_ID_NONE && !on;
+-            Ln.i("Device display turned " + (on ? "on" : "off"));
+-            if (cleanUp != null) {
+-                boolean mustRestoreOnExit = !on;
+-                cleanUp.setRestoreDisplayPower(mustRestoreOnExit);
++    private synchronized void setDisplayPower(boolean on) {
++        if (displayPowerStopped) {
++            return;
++        }
++        // An independent Android desktop still uses the main physical panel for its screen switch.
++        int logicalDisplayId = displayId != Device.DISPLAY_ID_NONE ? displayId : 0;
++        boolean alreadyOff = poweredOffDisplay != Device.DISPLAY_POWER_TARGET_NONE;
++        long target = alreadyOff ? poweredOffDisplay : Device.getDisplayPowerTarget(logicalDisplayId);
++        if (target == Device.DISPLAY_POWER_TARGET_NONE) {
++            return;
++        }
++
++        // Put the complete target in the cleanup pipe before blanking the panel.
++        if (!on && !alreadyOff && (cleanUp == null || !cleanUp.setRestoreDisplayPower(target))) {
++            Ln.w("Keeping the display on: no display power cleanup is available");
++            return;
++        }
++        if (!Device.setDisplayPower(target, on)) {
++            if (!on && !alreadyOff) {
++                cleanUp.setRestoreDisplayPower(Device.DISPLAY_POWER_TARGET_NONE);
+             }
++            return;
++        }
++
++        poweredOffDisplay = on ? Device.DISPLAY_POWER_TARGET_NONE : target;
++        keepDisplayPowerOff = displayId != Device.DISPLAY_ID_NONE && !on;
++        if (on && alreadyOff && cleanUp != null) {
++            cleanUp.setRestoreDisplayPower(Device.DISPLAY_POWER_TARGET_NONE);
+         }
++        Ln.i("Device display turned " + (on ? "on" : "off") + " (power target " + target + ")");
+     }
+ 
+     private void resetVideo() {
+diff --git a/server/src/main/java/com/genymobile/scrcpy/device/Device.java b/server/src/main/java/com/genymobile/scrcpy/device/Device.java
+index 615675a..047463f 100644
+--- a/server/src/main/java/com/genymobile/scrcpy/device/Device.java
++++ b/server/src/main/java/com/genymobile/scrcpy/device/Device.java
+@@ -34,6 +34,8 @@ import java.util.Locale;
+ public final class Device {
+ 
+     public static final int DISPLAY_ID_NONE = -1;
++    public static final long DISPLAY_POWER_TARGET_NONE = Long.MIN_VALUE;
++    private static final long DISPLAY_POWER_TARGET_BUILT_IN = Long.MIN_VALUE + 1;
+ 
+     public static final int POWER_MODE_OFF = SurfaceControl.POWER_MODE_OFF;
+     public static final int POWER_MODE_NORMAL = SurfaceControl.POWER_MODE_NORMAL;
+@@ -42,10 +44,6 @@ public final class Device {
+     public static final int INJECT_MODE_WAIT_FOR_RESULT = InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_RESULT;
+     public static final int INJECT_MODE_WAIT_FOR_FINISH = InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH;
+ 
+-    // The new display power method introduced in Android 15 does not work as expected:
+-    // <https://github.com/Genymobile/scrcpy/issues/5530>
+-    private static final boolean USE_ANDROID_15_DISPLAY_POWER = false;
+-
+     private Device() {
+         // not instantiable
+     }
+@@ -135,54 +133,47 @@ public final class Device {
+         return clipboardManager.setText(text);
+     }
+ 
+-    public static boolean setDisplayPower(int displayId, boolean on) {
+-        assert displayId != Device.DISPLAY_ID_NONE;
+-
+-        if (USE_ANDROID_15_DISPLAY_POWER && Build.VERSION.SDK_INT >= AndroidVersions.API_35_ANDROID_15) {
+-            return ServiceManager.getDisplayManager().requestDisplayPower(displayId, on);
+-        }
+-
+-        boolean applyToMultiPhysicalDisplays = Build.VERSION.SDK_INT >= AndroidVersions.API_29_ANDROID_10;
++    private static boolean useDisplayControl() {
++        // The physical display methods moved from SurfaceControl on Android 14.
++        return Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14 && !SurfaceControl.hasGetPhysicalDisplayIdsMethod();
++    }
+ 
+-        if (applyToMultiPhysicalDisplays
+-                && Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14
+-                && Build.BRAND.equalsIgnoreCase("honor")
+-                && SurfaceControl.hasGetBuildInDisplayMethod()) {
+-            // Workaround for Honor devices with Android 14:
+-            //  - <https://github.com/Genymobile/scrcpy/issues/4823>
+-            //  - <https://github.com/Genymobile/scrcpy/issues/4943>
+-            applyToMultiPhysicalDisplays = false;
++    public static long getDisplayPowerTarget(int displayId) {
++        boolean useBuiltInDisplay = Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10
++                || (Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14 && Build.BRAND.equalsIgnoreCase("honor")
++                        && SurfaceControl.hasGetBuildInDisplayMethod());
++        if (useBuiltInDisplay) {
++            // Preserve the upstream built-in display workaround for Honor and older Android.
++            return displayId == 0 ? DISPLAY_POWER_TARGET_BUILT_IN : DISPLAY_POWER_TARGET_NONE;
+         }
+ 
+-        int mode = on ? POWER_MODE_NORMAL : POWER_MODE_OFF;
+-        if (applyToMultiPhysicalDisplays) {
+-            // On Android 14, these internal methods have been moved to DisplayControl
+-            boolean useDisplayControl =
+-                    Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14 && !SurfaceControl.hasGetPhysicalDisplayIdsMethod();
+-
+-            // Change the power mode for all physical displays
+-            long[] physicalDisplayIds = useDisplayControl ? DisplayControl.getPhysicalDisplayIds() : SurfaceControl.getPhysicalDisplayIds();
+-            if (physicalDisplayIds == null) {
+-                Ln.e("Could not get physical display ids");
+-                return false;
+-            }
+-
+-            boolean allOk = true;
+-            for (long physicalDisplayId : physicalDisplayIds) {
+-                IBinder binder = useDisplayControl ? DisplayControl.getPhysicalDisplayToken(
+-                        physicalDisplayId) : SurfaceControl.getPhysicalDisplayToken(physicalDisplayId);
+-                allOk &= SurfaceControl.setDisplayPowerMode(binder, mode);
++        DisplayInfo displayInfo = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
++        String uniqueId = displayInfo != null ? displayInfo.getUniqueId() : null;
++        if (uniqueId != null && uniqueId.startsWith("local:")) {
++            try {
++                long id = Long.parseUnsignedLong(uniqueId.substring("local:".length()));
++                if (id != DISPLAY_POWER_TARGET_NONE && id != DISPLAY_POWER_TARGET_BUILT_IN) {
++                    return id;
++                }
++            } catch (NumberFormatException e) {
++                Ln.w("Invalid physical display ID for logical display " + displayId);
+             }
+-            return allOk;
+         }
++        Ln.w("Cannot resolve a physical power target for logical display " + displayId);
++        return DISPLAY_POWER_TARGET_NONE;
++    }
+ 
+-        // Older Android versions, only 1 display
+-        IBinder d = SurfaceControl.getBuiltInDisplay();
+-        if (d == null) {
+-            Ln.e("Could not get built-in display");
++    public static boolean setDisplayPower(long target, boolean on) {
++        if (target == DISPLAY_POWER_TARGET_NONE) {
++            return false;
++        }
++        IBinder token = target == DISPLAY_POWER_TARGET_BUILT_IN ? SurfaceControl.getBuiltInDisplay()
++                : useDisplayControl() ? DisplayControl.getPhysicalDisplayToken(target) : SurfaceControl.getPhysicalDisplayToken(target);
++        if (token == null) {
++            Ln.w("Cannot get the display token for power target " + target);
+             return false;
+         }
+-        return SurfaceControl.setDisplayPowerMode(d, mode);
++        return SurfaceControl.setDisplayPowerMode(token, on ? POWER_MODE_NORMAL : POWER_MODE_OFF);
+     }
+ 
+     public static boolean powerOffScreen(int displayId) {

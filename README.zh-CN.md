@@ -53,6 +53,8 @@ Pixel 镜像自带 Google 的 `adb` 和 scrcpy 服务端。它通过 Bonjour 在
 
 ## 从源码构建
 
+编译 Android 服务端需要 JDK、Android SDK Platform 36 和 Build-Tools 36.0.0。将 `ANDROID_HOME` 指向 SDK 目录。
+
 ```sh
 git clone https://github.com/ReffWu/pixelmirror.git
 cd pixelmirror
@@ -66,7 +68,7 @@ open build/PixelMirror.app
 
 ## 致谢
 
-Pixel 镜像建立在 Genymobile 的 [scrcpy](https://github.com/Genymobile/scrcpy)（Apache 2.0，其服务端运行在手机上）和 Google 的 [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)（`adb`）之上。两者均未经修改直接打包，许可证随 App 一起分发。
+Pixel 镜像建立在 Genymobile 的 [scrcpy](https://github.com/Genymobile/scrcpy)（Apache 2.0，其服务端运行在手机上）和 Google 的 [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)（`adb`）之上。此分支为 scrcpy 增加了单块实体屏的电源控制。许可证随 App 一起分发。
 
 ## 许可证
 

@@ -66,7 +66,7 @@ open build/PixelMirror.app
 
 ## クレジット
 
-PixelMirror は Genymobile の [scrcpy](https://github.com/Genymobile/scrcpy)（Apache 2.0、サーバーはスマホ上で動作）と Google の [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)（`adb`）の上に成り立っています。どちらも無改変で同梱し、ライセンスはアプリ内に含まれています。
+PixelMirror は Genymobile の [scrcpy](https://github.com/Genymobile/scrcpy)（Apache 2.0、サーバーはスマホ上で動作）と Google の [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)（`adb`）の上に成り立っています。このブランチでは、scrcpy の画面電源制御を単一の物理ディスプレイに限定しています。ライセンスはアプリ内に含まれています。
 
 ## ライセンス
 

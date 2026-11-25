@@ -66,7 +66,7 @@ open build/PixelMirror.app
 
 ## 致謝
 
-Pixel 鏡像建立在 Genymobile 的 [scrcpy](https://github.com/Genymobile/scrcpy)（Apache 2.0，其伺服器執行於手機上）與 Google 的 [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)（`adb`）之上。兩者皆未經修改直接打包，授權條款隨 App 一併提供。
+Pixel 鏡像建立在 Genymobile 的 [scrcpy](https://github.com/Genymobile/scrcpy)（Apache 2.0，其伺服器執行於手機上）與 Google 的 [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)（`adb`）之上。此分支修改了 scrcpy 的螢幕電源控制，使其只操作單一實體螢幕。授權條款隨 App 一併提供。
 
 ## 授權
 
