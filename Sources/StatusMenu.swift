@@ -57,7 +57,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     let mirrors = MirrorManager.shared
     for phone in mirrors.live {
       menu.addItem(.sectionHeader(title: phone.name))
-      if hub.phones.contains(where: { $0.id == phone.id }) {
+      let controller = mirrors.controller(for: phone)
+      if controller?.hasActiveMirror == true || hub.phones.contains(where: { $0.id == phone.id }) {
         menu.addItem(
           info(
             phone.isUSB ? String(localized: "USB") : String(localized: "Wi-Fi"),
@@ -73,7 +74,6 @@ final class StatusMenu: NSObject, NSMenuDelegate {
       } else {
         menu.addItem(info(String(localized: "Waiting for \(phone.name)…"), "hourglass"))
       }
-      let controller = mirrors.controller(for: phone)
       menu.addItem(action(String(localized: "Show")) { mirrors.open(phone) })
       menu.addItem(action(String(localized: "Open App…")) { AppPicker.shared.show(for: phone) })
       let computer = action(String(localized: "Computer Mode")) { mirrors.toggleComputer(phone) }

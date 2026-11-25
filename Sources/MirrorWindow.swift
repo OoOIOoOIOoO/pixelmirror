@@ -78,7 +78,7 @@ final class MirrorManager: ObservableObject {
     dismissed = dismissed.intersection(present)
     for controller in controllers.values {
       if let phone = phones.first(where: { $0.id == controller.phone.id }) {
-        if phone.transport != controller.phone.transport { controller.resume(with: phone) }
+        controller.resume(with: phone)
       } else {
         controller.phoneWentAway()
       }
@@ -668,6 +668,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
 
   func phoneWentAway() {
     phonePresent = false
+    guard session == nil else { return }
     showOverlay(String(localized: "Waiting for \(phone.name)…"), busy: true)
   }
 
@@ -696,7 +697,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
 
   func session(_ session: MirrorSession, videoSizeChanged size: CGSize) {
     guard session === self.session, size.width > 0, size.height > 0 else { return }
-    hideOverlay()
+    overlay.isHidden = true
     let rotated =
       videoSize != .zero && (videoSize.width > videoSize.height) != (size.width > size.height)
     let first = videoSize == .zero
@@ -777,9 +778,7 @@ final class MirrorWindowController: NSWindowController, NSWindowDelegate, Mirror
     overlay.isHidden = false
   }
 
-  private func hideOverlay() {
-    overlay.isHidden = true
-  }
+  var hasActiveMirror: Bool { session?.isConnected == true }
 
   func windowWillClose(_ notification: Notification) {
     lockTimer?.invalidate()

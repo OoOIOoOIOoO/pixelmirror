@@ -60,6 +60,12 @@ final class MirrorSession: @unchecked Sendable {
 
   var input: ControlChannel { control }
 
+  var isConnected: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return !stopped && !sockets.isEmpty
+  }
+
   func start() {
     Thread.detachNewThread { [self] in
       do {
